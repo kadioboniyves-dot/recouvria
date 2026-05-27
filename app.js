@@ -138,7 +138,7 @@ const reminderChannels = [
   ["notice", "Mise en demeure"]
 ];
 const paymentMethods = ["Espèces", "Mobile Money", "Virement", "Chèque", "Carte"];
-const storageKey = "recouvriaCasesV2";
+const storageKey = "recouvriaCasesV3";
 
 const currency = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -159,12 +159,28 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizeCases(items) {
+  return items.map((item) => {
+    const nextItem = { ...item, history: item.history || [] };
+    const due = Math.max(0, Number(nextItem.amount) - Number(nextItem.paid));
+    if (due === 0 && Number(nextItem.amount) > 0) {
+      nextItem.paid = nextItem.amount;
+      nextItem.status = "Clôturé";
+      nextItem.risk = "low";
+      nextItem.promise = "";
+      nextItem.nextAction = "Dossier soldé";
+      nextItem.nextDate = "Aucune";
+    }
+    return nextItem;
+  });
+}
+
 function loadCases() {
   try {
     const stored = localStorage.getItem(storageKey);
-    return stored ? JSON.parse(stored) : structuredClone(seedCases);
+    return normalizeCases(stored ? JSON.parse(stored) : structuredClone(seedCases));
   } catch {
-    return structuredClone(seedCases);
+    return normalizeCases(structuredClone(seedCases));
   }
 }
 
@@ -225,6 +241,7 @@ function riskLabel(risk) {
 }
 
 function statusClass(item) {
+  if (item.status === "Clôturé") return "low";
   if (item.status.includes("contentieux") || item.status.includes("Précontentieux")) return "legal";
   if (item.status.includes("Promesse")) return "promise";
   return "neutral";
@@ -248,8 +265,8 @@ function getFilteredCases() {
 function renderKpis() {
   const totalDue = cases.reduce((sum, item) => sum + item.amount - item.paid, 0);
   const recovered = cases.reduce((sum, item) => sum + item.paid, 0);
-  const urgent = cases.filter((item) => item.risk === "high" || item.risk === "legal").length;
-  const promises = cases.filter((item) => item.promise).length;
+  const urgent = cases.filter((item) => remainingAmount(item) > 0 && (item.risk === "high" || item.risk === "legal")).length;
+  const promises = cases.filter((item) => remainingAmount(item) > 0 && item.promise).length;
 
   const data = [
     ["C", "Créances nettes", formatMoney(totalDue), "+8 dossiers cette semaine", "var(--teal-soft)", "var(--teal)"],
@@ -270,7 +287,7 @@ function renderKpis() {
 
 function renderPriorityList() {
   const priority = cases
-    .filter((item) => item.risk === "high" || item.risk === "legal")
+    .filter((item) => remainingAmount(item) > 0 && (item.risk === "high" || item.risk === "legal"))
     .slice(0, 4);
 
   document.querySelector("#priorityList").innerHTML = priority.map((item) => `
@@ -322,7 +339,9 @@ function renderAgentFilter() {
 
 function renderTable() {
   const rows = getFilteredCases();
-  document.querySelector("#caseTable").innerHTML = rows.map((item) => `
+  document.querySelector("#caseTable").innerHTML = rows.map((item) => {
+    const settled = remainingAmount(item) <= 0 || item.status === "Clôturé";
+    return `
     <tr>
       <td><strong>${item.id}</strong><small>${item.nextDate}</small></td>
       <td><strong>${item.client}</strong><small>${item.contact} - ${item.phone}</small></td>
@@ -335,12 +354,13 @@ function renderTable() {
         <div class="mini-actions">
           <button type="button" title="Ouvrir" data-open="${item.id}">O</button>
           <button type="button" title="Modifier" data-edit="${item.id}">M</button>
-          <button type="button" title="Relancer" data-reminder-form="${item.id}">R</button>
-          <button type="button" title="Paiement" data-payment-form="${item.id}">P</button>
+          <button type="button" title="${settled ? "Dossier soldé" : "Relancer"}" ${settled ? "disabled" : `data-reminder-form="${item.id}"`}>R</button>
+          <button type="button" title="${settled ? "Dossier soldé" : "Paiement"}" ${settled ? "disabled" : `data-payment-form="${item.id}"`}>P</button>
         </div>
       </td>
     </tr>
-  `).join("") || `
+  `;
+  }).join("") || `
     <tr><td colspan="8">Aucun dossier ne correspond aux critères.</td></tr>
   `;
 }
@@ -360,6 +380,7 @@ function renderRelances() {
 
   document.querySelector("#taskList").innerHTML = cases
     .slice()
+    .filter((item) => remainingAmount(item) > 0 && item.status !== "Clôturé")
     .sort((a, b) => b.delay - a.delay)
     .slice(0, 5)
     .map((item) => `
@@ -376,32 +397,35 @@ function renderRelances() {
           <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="email">Email</button>
         </div>
       </article>
-    `).join("");
+    `).join("") || `<article class="task-card"><h3>Aucune relance active</h3><p>Tous les dossiers affichés sont soldés ou sans action urgente.</p></article>`;
 }
 
 function renderPayments() {
   document.querySelector("#paymentGrid").innerHTML = cases
     .slice()
     .sort((a, b) => remainingAmount(b) - remainingAmount(a))
-    .map((item) => `
+    .map((item) => {
+      const settled = remainingAmount(item) <= 0 || item.status === "Clôturé";
+      return `
       <article class="payment-card">
         <div class="meta-row">
-          <span class="badge ${item.promise ? "promise" : "neutral"}">${item.promise ? "Promesse" : "Paiement"}</span>
+          <span class="badge ${settled ? "low" : item.promise ? "promise" : "neutral"}">${settled ? "Soldé" : item.promise ? "Promesse" : "Paiement"}</span>
           <span class="badge neutral">${item.id}</span>
         </div>
         <h3>${item.client}</h3>
         <strong>${formatMoney(remainingAmount(item))}</strong>
-        <p>${item.promise ? item.promise : "Aucun engagement actif"}</p>
+        <p>${settled ? "Dossier clôturé" : item.promise ? item.promise : "Aucun engagement actif"}</p>
         <div class="money-progress" aria-hidden="true">
           <span style="width:${Math.round((item.paid / Math.max(item.amount, 1)) * 100)}%"></span>
         </div>
         <div class="inline-actions">
-          <button class="primary-button" type="button" data-payment-form="${item.id}">Encaisser</button>
-          <button class="secondary-button" type="button" data-payment-full="${item.id}">Encaisser tout</button>
-          <button class="secondary-button" type="button" data-promise-form="${item.id}">Engagement</button>
+          <button class="primary-button" type="button" ${settled ? "disabled" : `data-payment-form="${item.id}"`}>${settled ? "Soldé" : "Encaisser"}</button>
+          <button class="secondary-button" type="button" ${settled ? "disabled" : `data-payment-full="${item.id}"`}>Encaisser tout</button>
+          <button class="secondary-button" type="button" ${settled ? "disabled" : `data-promise-form="${item.id}"`}>Engagement</button>
         </div>
       </article>
-    `).join("");
+    `;
+    }).join("");
 }
 
 function renderReports() {
@@ -439,6 +463,25 @@ function renderReports() {
 function openDrawer(id) {
   const item = cases.find((entry) => entry.id === id);
   if (!item) return;
+  const due = remainingAmount(item);
+  const settled = due <= 0 || item.status === "Clôturé";
+  const actionPanel = settled
+    ? `
+      <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="secondary-button" type="button" disabled>Paiement soldé</button>
+      <button class="secondary-button" type="button" disabled>Relances désactivées</button>
+      <button class="secondary-button" type="button" disabled>Aucun engagement requis</button>
+    `
+    : `
+      <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="primary-button" type="button" data-payment-form="${item.id}">Encaisser paiement</button>
+      <button class="secondary-button" type="button" data-payment-full="${item.id}">Encaisser tout</button>
+      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="call">Appeler</button>
+      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="sms">Envoyer SMS</button>
+      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="email">Email</button>
+      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="notice">Mise en demeure</button>
+      <button class="secondary-button" type="button" data-promise-form="${item.id}">Engagement</button>
+    `;
 
   document.querySelector("#drawerContent").innerHTML = `
     <div class="detail-header">
@@ -451,12 +494,14 @@ function openDrawer(id) {
       </div>
     </div>
 
-    <div class="detail-grid">
+      <div class="detail-grid">
       <div class="detail-stat"><span>Montant initial</span><strong>${formatMoney(item.amount)}</strong></div>
-      <div class="detail-stat"><span>Reste dû</span><strong>${formatMoney(remainingAmount(item))}</strong></div>
+      <div class="detail-stat"><span>Reste dû</span><strong>${formatMoney(due)}</strong></div>
       <div class="detail-stat"><span>Retard</span><strong>${item.delay} jours</strong></div>
       <div class="detail-stat"><span>Agent</span><strong>${item.agent}</strong></div>
     </div>
+
+    ${settled ? `<div class="settled-note"><strong>Dossier soldé</strong><span>Les actions de paiement et de relance sont désactivées tant qu'il n'y a plus de montant à recouvrer.</span></div>` : ""}
 
     <section>
       <p class="eyebrow">Prochaine action</p>
@@ -466,14 +511,7 @@ function openDrawer(id) {
     </section>
 
     <div class="drawer-actions">
-      <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
-      <button class="primary-button" type="button" data-payment-form="${item.id}">Encaisser paiement</button>
-      <button class="secondary-button" type="button" data-payment-full="${item.id}">Encaisser tout</button>
-      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="call">Appeler</button>
-      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="sms">Envoyer SMS</button>
-      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="email">Email</button>
-      <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="notice">Mise en demeure</button>
-      <button class="secondary-button" type="button" data-promise-form="${item.id}">Engagement</button>
+      ${actionPanel}
     </div>
 
     <div class="activity-log">
@@ -491,6 +529,11 @@ function openDrawer(id) {
 function openReminderForm(id, channel = "call") {
   const item = getCase(id);
   if (!item) return;
+  if (remainingAmount(item) <= 0 || item.status === "Clôturé") {
+    openDrawer(id);
+    toast("Ce dossier est soldé : relance désactivée");
+    return;
+  }
 
   document.querySelector("#drawerContent").innerHTML = `
     <div class="detail-header">
@@ -534,6 +577,11 @@ function openPaymentForm(id) {
   const item = getCase(id);
   if (!item) return;
   const remaining = remainingAmount(item);
+  if (remaining <= 0 || item.status === "Clôturé") {
+    openDrawer(id);
+    toast("Ce dossier est déjà soldé");
+    return;
+  }
 
   document.querySelector("#drawerContent").innerHTML = `
     <div class="detail-header">
@@ -579,6 +627,11 @@ function openPaymentForm(id) {
 
 function openPromiseForm(id = "") {
   const item = getCase(id);
+  if (item && (remainingAmount(item) <= 0 || item.status === "Clôturé")) {
+    openDrawer(id);
+    toast("Ce dossier est soldé : aucun engagement requis");
+    return;
+  }
   const selectedId = item?.id || cases[0]?.id || "";
 
   document.querySelector("#drawerContent").innerHTML = `
@@ -622,6 +675,11 @@ function openPromiseForm(id = "") {
 function registerReminder(id, channel, note = "", nextAction = "Suivi de relance", nextDate = "Dans 48h") {
   const item = getCase(id);
   if (!item) return;
+  if (remainingAmount(item) <= 0 || item.status === "Clôturé") {
+    openDrawer(id);
+    toast("Ce dossier est soldé : relance non nécessaire");
+    return;
+  }
   const label = channelLabel(channel);
 
   item.status = channel === "notice" ? "Précontentieux" : "Relancé";

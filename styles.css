@@ -744,6 +744,11 @@ td small {
   color: var(--teal);
 }
 
+.mini-actions button:disabled {
+  color: var(--muted);
+  background: #f3f5f5;
+}
+
 .timeline-step {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
@@ -862,6 +867,22 @@ td small {
 
 .detail-stat strong {
   font-size: 18px;
+}
+
+.settled-note {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--green-soft);
+  border-radius: 8px;
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.settled-note span {
+  color: #3f5d4a;
+  line-height: 1.45;
 }
 
 .activity-log {
