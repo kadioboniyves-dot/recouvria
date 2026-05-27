@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recouvria - Plateforme de recouvrement</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navigation principale">
+        <a class="brand" href="#" aria-label="Recouvria">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" role="img">
+              <path d="M8 10.5C8 7.5 10.5 5 13.5 5h13C29.5 5 32 7.5 32 10.5v19C32 32.5 29.5 35 26.5 35h-13C10.5 35 8 32.5 8 29.5v-19Z" />
+              <path d="M14 14h12M14 20h12M14 26h7" />
+            </svg>
+          </span>
+          <span>
+            <strong>Recouvria</strong>
+            <small>Suite recouvrement</small>
+          </span>
+        </a>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-view="dashboard" type="button">
+            <span class="icon" aria-hidden="true">D</span>
+            Tableau de bord
+          </button>
+          <button class="nav-item" data-view="portfolio" type="button">
+            <span class="icon" aria-hidden="true">P</span>
+            Portefeuille
+          </button>
+          <button class="nav-item" data-view="relances" type="button">
+            <span class="icon" aria-hidden="true">R</span>
+            Relances
+          </button>
+          <button class="nav-item" data-view="paiements" type="button">
+            <span class="icon" aria-hidden="true">E</span>
+            Engagements
+          </button>
+          <button class="nav-item" data-view="rapports" type="button">
+            <span class="icon" aria-hidden="true">A</span>
+            Rapports
+          </button>
+        </nav>
+
+        <div class="sidebar-panel">
+          <span class="panel-label">Objectif mensuel</span>
+          <strong>72%</strong>
+          <div class="progress-track" aria-hidden="true"><span style="width: 72%"></span></div>
+          <small>36,4 M FCFA encaissés</small>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Centre opérationnel</p>
+            <h1>Recouvrement clients</h1>
+          </div>
+          <div class="topbar-actions">
+            <label class="search-field">
+              <span class="sr-only">Rechercher</span>
+              <input id="globalSearch" type="search" placeholder="Rechercher client, dossier, téléphone..." />
+            </label>
+            <button class="secondary-button" id="exportButton" type="button">Exporter</button>
+            <button class="primary-button" id="newCaseButton" type="button">Nouveau dossier</button>
+          </div>
+        </header>
+
+        <section class="view active" id="dashboard" aria-label="Tableau de bord">
+          <div class="kpi-grid" id="kpiGrid"></div>
+
+          <div class="dashboard-grid">
+            <section class="surface wide">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Priorités</p>
+                  <h2>Dossiers à traiter aujourd'hui</h2>
+                </div>
+                <button class="ghost-button" data-view-link="portfolio" type="button">Voir tout</button>
+              </div>
+              <div class="priority-list" id="priorityList"></div>
+            </section>
+
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Performance</p>
+                  <h2>Encaissements</h2>
+                </div>
+              </div>
+              <div class="chart" id="collectionChart" aria-label="Graphique des encaissements"></div>
+            </section>
+
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Canaux</p>
+                  <h2>Relances actives</h2>
+                </div>
+              </div>
+              <div class="channel-list" id="channelList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="portfolio" aria-label="Portefeuille débiteurs">
+          <div class="toolbar">
+            <div class="segmented" aria-label="Filtrer les dossiers">
+              <button class="active" data-filter="all" type="button">Tous</button>
+              <button data-filter="urgent" type="button">Urgents</button>
+              <button data-filter="promise" type="button">Promesses</button>
+              <button data-filter="legal" type="button">Contentieux</button>
+            </div>
+            <select id="agentFilter" aria-label="Filtrer par agent">
+              <option value="all">Tous les agents</option>
+            </select>
+          </div>
+          <section class="surface table-surface">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Dossier</th>
+                    <th>Débiteur</th>
+                    <th>Montant</th>
+                    <th>Retard</th>
+                    <th>Risque</th>
+                    <th>Agent</th>
+                    <th>Statut</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="caseTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="relances" aria-label="Relances">
+          <div class="workflow-grid">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Automatisation</p>
+                  <h2>Scénarios de relance</h2>
+                </div>
+              </div>
+              <div class="timeline" id="automationTimeline"></div>
+            </section>
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">File d'appels</p>
+                  <h2>Actions planifiées</h2>
+                </div>
+              </div>
+              <div class="task-list" id="taskList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="paiements" aria-label="Engagements de paiement">
+          <section class="surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Promesses</p>
+                <h2>Plans de paiement suivis</h2>
+              </div>
+              <button class="primary-button" id="promiseButton" type="button">Ajouter engagement</button>
+            </div>
+            <div class="payment-grid" id="paymentGrid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="rapports" aria-label="Rapports">
+          <div class="report-grid">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Synthèse</p>
+                  <h2>Rapport mensuel</h2>
+                </div>
+              </div>
+              <dl class="report-list" id="reportList"></dl>
+            </section>
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Equipe</p>
+                  <h2>Performance agents</h2>
+                </div>
+              </div>
+              <div class="agent-list" id="agentList"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Détail du dossier">
+      <div class="drawer-panel">
+        <button class="icon-button close-drawer" id="closeDrawer" type="button" aria-label="Fermer">x</button>
+        <div id="drawerContent"></div>
+      </div>
+    </aside>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="app.js?v=16"></script>
+  </body>
+</html>
