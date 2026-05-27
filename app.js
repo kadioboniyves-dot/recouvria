@@ -771,6 +771,23 @@ function exportCases() {
   toast("Export CSV généré");
 }
 
+function resetDemo() {
+  cases = structuredClone(seedCases);
+  saveCases();
+  activeFilter = "all";
+  activeAgent = "all";
+  searchTerm = "";
+  document.querySelector("#globalSearch").value = "";
+  document.querySelector("#agentFilter").value = "all";
+  document.querySelectorAll(".segmented button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.filter === "all");
+  });
+  refreshViews();
+  closeDrawer();
+  switchView("demo");
+  toast("Données de démonstration réinitialisées");
+}
+
 function handleFormSave(form) {
   try {
     if (!form) return;
@@ -1050,6 +1067,7 @@ function bindEvents() {
   document.querySelector("#exportButton").addEventListener("click", exportCases);
   document.querySelector("#newCaseButton").addEventListener("click", () => openCaseForm());
   document.querySelector("#promiseButton").addEventListener("click", () => openPromiseForm());
+  document.querySelector("#demoResetButton").addEventListener("click", resetDemo);
 }
 
 function init() {

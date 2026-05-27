@@ -2,6 +2,12 @@
 
 Recouvria est une application web locale de gestion du recouvrement client.
 
+Version publique :
+
+```text
+https://kadioboniyves-dot.github.io/recouvria/
+```
+
 ## Fonctionnalites
 
 - Tableau de bord des creances et encaissements
@@ -13,6 +19,7 @@ Recouvria est une application web locale de gestion du recouvrement client.
 - Cloture automatique des dossiers soldes
 - Rapports et export CSV
 - Sauvegarde locale dans le navigateur
+- Mode demo client pour presentation commerciale
 
 ## Lancer l'application
 
@@ -32,4 +39,3 @@ http://localhost:4173/
 - `styles.css` : design responsive
 - `app.js` : logique de gestion des dossiers, relances, paiements et rapports
 - `server.mjs` : serveur local Node.js
-
