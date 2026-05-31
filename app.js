@@ -1,5 +1,5 @@
-const storageKey = "recouvriaCasesV3";
-const orderStorageKey = "recouvriaOrdersV2";
+const storageKey = "recouvriaCasesV4";
+const orderStorageKey = "recouvriaOrdersV3";
 
 const seedCases = [
   {
@@ -671,7 +671,7 @@ function getOrdersForCase(item) {
 }
 
 function orderGroupKey(order) {
-  return `${String(order.client || "").trim().toLowerCase()}::${String(order.orderRef || order.id).trim().toLowerCase()}`;
+  return String(order.client || "").trim().toLowerCase();
 }
 
 function getOrderGroup(order) {
@@ -686,7 +686,7 @@ function syncOrderCase(order) {
   const total = unpaidOrders.reduce((sum, item) => sum + item.total, 0);
   const existingCaseId = groupOrders.find((item) => item.caseId)?.caseId || "";
   const existingCase = existingCaseId ? getCase(existingCaseId) : null;
-  const label = `${order.orderRef || order.id}`;
+  const label = `facture ${order.client}`;
 
   if (!unpaidOrders.length || total <= 0) {
     if (existingCase) {
@@ -707,9 +707,9 @@ function syncOrderCase(order) {
     existingCase.amount = total;
     existingCase.status = partial ? "Négociation" : "Nouveau";
     existingCase.risk = partial ? "medium" : "high";
-    existingCase.nextAction = "Suivi commande multi-produits";
+    existingCase.nextAction = "Suivi facture client importée";
     existingCase.nextDate = "Dans 48h";
-    addHistory(existingCase, `Commande ${label} mise à jour : ${unpaidOrders.length} produit(s), total ${formatMoney(total)}`);
+    addHistory(existingCase, `Facture client mise à jour : ${unpaidOrders.length} produit(s), total ${formatMoney(total)}`);
     groupOrders.forEach((item) => { item.caseId = existingCase.id; });
     return;
   }
@@ -728,11 +728,11 @@ function syncOrderCase(order) {
     archived: false,
     agent: knownClient?.agent || agents[0].name,
     status: partial ? "Négociation" : "Nouveau",
-    nextAction: "Relance commande multi-produits",
+    nextAction: "Relance facture client importée",
     nextDate: "Aujourd'hui",
     promise: "",
     history: [
-      `Dossier généré depuis la commande ${label}`,
+      `Dossier généré depuis l'import Excel du client`,
       `${unpaidOrders.length} produit(s) - total ${formatMoney(total)}`,
       ...unpaidOrders.slice(0, 4).map((item) => `${item.product} - ${item.quantity} x ${formatMoney(item.unitPrice)}`)
     ]
@@ -1544,19 +1544,27 @@ function importOrdersFromText(text) {
   let imported = 0;
   body.forEach((line) => {
     const row = parseDelimitedLine(line, delimiter);
-    const quantity = Math.max(0, Number(row[indexOf(["quantité", "quantite", "qte"], 2)]) || 0);
-    const unitPrice = parseAmount(row[indexOf(["prix unitaire", "prixunitaire", "pu"], 3)]);
-    const total = parseAmount(row[indexOf(["montant total", "montanttotal", "total"], 4)]) || quantity * unitPrice;
+    const refColumn = indexOf(["commande", "reference", "référence", "bon commande", "bondecommande"], 0);
+    const clientColumn = indexOf(["client", "debiteur", "débiteur"], hasHeader ? 1 : 1);
+    const productColumn = indexOf(["produit", "article", "designation", "désignation"], hasHeader ? 2 : 2);
+    const quantityColumn = indexOf(["quantité", "quantite", "qte"], hasHeader ? 3 : 3);
+    const unitPriceColumn = indexOf(["prix unitaire", "prixunitaire", "pu"], hasHeader ? 4 : 4);
+    const totalColumn = indexOf(["montant total", "montanttotal", "total"], hasHeader ? 5 : 5);
+    const dateColumn = indexOf(["date commande", "datecommande", "date"], hasHeader ? 6 : 6);
+    const statusColumn = indexOf(["statut", "status"], hasHeader ? 7 : 7);
+    const quantity = Math.max(0, Number(row[quantityColumn]) || 0);
+    const unitPrice = parseAmount(row[unitPriceColumn]);
+    const total = parseAmount(row[totalColumn]) || quantity * unitPrice;
     const order = {
       id: nextOrderId(),
-      orderRef: row[indexOf(["commande", "reference", "référence", "bon commande", "bondecommande"], 0)] || "",
-      client: row[indexOf(["client", "debiteur", "débiteur"], hasHeader ? 1 : 0)] || "",
-      product: row[indexOf(["produit", "article", "designation", "désignation"], hasHeader ? 2 : 1)] || "",
+      orderRef: row[refColumn] || "",
+      client: row[clientColumn] || "",
+      product: row[productColumn] || "",
       quantity,
       unitPrice,
       total,
-      date: row[indexOf(["date commande", "datecommande", "date"], 5)] || todayInputValue(),
-      status: orderStatuses.includes(row[indexOf(["statut", "status"], 6)]) ? row[indexOf(["statut", "status"], 6)] : "Non payée",
+      date: row[dateColumn] || todayInputValue(),
+      status: orderStatuses.includes(row[statusColumn]) ? row[statusColumn] : "Non payée",
       caseId: ""
     };
     order.orderRef = order.orderRef || `BC-${order.date.replaceAll("-", "")}-${normalizeHeader(order.client).slice(0, 10)}`;
