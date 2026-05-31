@@ -934,6 +934,12 @@ td small {
 
 .detail-stat strong {
   font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.muted-line {
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .settled-note {
@@ -1150,5 +1156,35 @@ td small {
 
   .danger-button {
     width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  h1 {
+    font-size: 26px;
+  }
+
+  .brand strong {
+    font-size: 18px;
+  }
+
+  .nav-item {
+    min-height: 40px;
+    padding: 0 10px;
+    font-size: 14px;
+  }
+
+  .demo-copy h2 {
+    font-size: 26px;
+  }
+
+  .drawer-panel {
+    width: 100vw;
+    padding: 18px;
+  }
+
+  th,
+  td {
+    padding: 12px;
   }
 }

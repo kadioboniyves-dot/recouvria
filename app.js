@@ -4,6 +4,7 @@ const seedCases = [
     client: "Clinique Saint Gabriel",
     contact: "Awa Kouame",
     phone: "+225 07 48 22 91 34",
+    email: "awa.kouame@saintgabriel.ci",
     amount: 8450000,
     paid: 1850000,
     delay: 46,
@@ -20,6 +21,7 @@ const seedCases = [
     client: "BTP Horizon",
     contact: "Nicolas Bamba",
     phone: "+225 05 11 72 40 08",
+    email: "nicolas.bamba@btphorizon.ci",
     amount: 12300000,
     paid: 3300000,
     delay: 73,
@@ -36,6 +38,7 @@ const seedCases = [
     client: "Noura Distribution",
     contact: "Salimata Ouattara",
     phone: "+225 01 09 63 88 21",
+    email: "salimata.ouattara@nouradistribution.ci",
     amount: 6200000,
     paid: 2700000,
     delay: 29,
@@ -52,6 +55,7 @@ const seedCases = [
     client: "Logis Afrique",
     contact: "Hamed Diop",
     phone: "+225 27 22 45 09 10",
+    email: "hamed.diop@logisafrique.ci",
     amount: 3800000,
     paid: 2400000,
     delay: 18,
@@ -68,6 +72,7 @@ const seedCases = [
     client: "AgroPlus CI",
     contact: "Moussa Fofana",
     phone: "+225 07 73 18 04 66",
+    email: "moussa.fofana@agroplus.ci",
     amount: 9750000,
     paid: 4200000,
     delay: 57,
@@ -84,6 +89,7 @@ const seedCases = [
     client: "Transit Union",
     contact: "Eva N'Dri",
     phone: "+225 05 99 42 31 77",
+    email: "eva.ndri@transitunion.ci",
     amount: 2900000,
     paid: 1600000,
     delay: 12,
@@ -160,9 +166,20 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function defaultEmail(item) {
+  const slug = String(item.client || "client")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/(^\.|\.$)/g, "");
+  return `recouvrement@${slug || "client"}.ci`;
+}
+
 function normalizeCases(items) {
   return items.map((item) => {
     const nextItem = { ...item, archived: Boolean(item.archived), history: item.history || [] };
+    nextItem.email = nextItem.email || defaultEmail(nextItem);
     const due = Math.max(0, Number(nextItem.amount) - Number(nextItem.paid));
     if (due === 0 && Number(nextItem.amount) > 0) {
       nextItem.paid = nextItem.amount;
@@ -223,6 +240,57 @@ function channelLabel(channel) {
   return reminderChannels.find(([value]) => value === channel)?.[1] || channel;
 }
 
+function cleanPhone(phone) {
+  return String(phone || "").replace(/[^\d+]/g, "");
+}
+
+function reminderSubject(item) {
+  return `Relance dossier ${item.id} - Recouvria`;
+}
+
+function reminderMessage(item, note = "") {
+  const due = formatMoney(remainingAmount(item));
+  return [
+    `Bonjour ${item.contact},`,
+    "",
+    `Nous vous contactons concernant le dossier ${item.id} (${item.client}).`,
+    `Montant restant dû : ${due}.`,
+    item.promise ? `Engagement en cours : ${item.promise}.` : "",
+    note ? `Note : ${note}` : "",
+    "",
+    "Merci de nous confirmer votre disposition pour le règlement.",
+    "Service recouvrement"
+  ].filter(Boolean).join("\n");
+}
+
+function openCommunicationLink(item, channel, note = "") {
+  const message = encodeURIComponent(reminderMessage(item, note));
+  const subject = encodeURIComponent(reminderSubject(item));
+  const phone = cleanPhone(item.phone);
+
+  if (channel === "call" && phone) {
+    window.location.href = `tel:${phone}`;
+    return true;
+  }
+
+  if (channel === "sms" && phone) {
+    window.location.href = `sms:${phone}?body=${message}`;
+    return true;
+  }
+
+  if (channel === "email" && item.email) {
+    window.location.href = `mailto:${encodeURIComponent(item.email)}?subject=${subject}&body=${message}`;
+    return true;
+  }
+
+  if (channel === "whatsapp" && phone) {
+    window.open(`https://wa.me/${phone.replace("+", "")}?text=${message}`, "_blank", "noopener");
+    return true;
+  }
+
+  return false;
+}
+
 function todayLabel() {
   return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
 }
@@ -250,7 +318,7 @@ function statusClass(item) {
 
 function getFilteredCases() {
   return cases.filter((item) => {
-    const haystack = `${item.id} ${item.client} ${item.contact} ${item.phone} ${item.agent} ${item.status}`.toLowerCase();
+    const haystack = `${item.id} ${item.client} ${item.contact} ${item.phone} ${item.email} ${item.agent} ${item.status}`.toLowerCase();
     const matchesSearch = haystack.includes(searchTerm);
     const matchesAgent = activeAgent === "all" || item.agent === activeAgent;
     const matchesStatus =
@@ -352,7 +420,7 @@ function renderTable() {
     return `
     <tr class="${item.archived ? "archived-row" : ""}">
       <td><strong>${item.id}</strong><small>${item.nextDate}</small></td>
-      <td><strong>${item.client}</strong><small>${item.contact} - ${item.phone}</small></td>
+      <td><strong>${item.client}</strong><small>${item.contact} - ${item.phone}</small><small>${item.email}</small></td>
       <td class="amount">${formatMoney(remainingAmount(item))}</td>
       <td>${item.delay} jours</td>
       <td><span class="badge ${item.risk}">${riskLabel(item.risk)}</span></td>
@@ -512,18 +580,20 @@ function openDrawer(id) {
     <div class="detail-header">
       <p class="eyebrow">${item.id}</p>
       <h2>${item.client}</h2>
-      <p>${item.contact} - ${item.phone}</p>
+      <p>${item.contact} - ${item.phone}<br><span class="muted-line">${item.email}</span></p>
       <div class="meta-row">
         <span class="badge ${item.risk}">${riskLabel(item.risk)}</span>
         <span class="badge ${item.archived ? "archived" : statusClass(item)}">${item.archived ? "Archivé" : item.status}</span>
       </div>
     </div>
 
-      <div class="detail-grid">
+    <div class="detail-grid">
       <div class="detail-stat"><span>Montant initial</span><strong>${formatMoney(item.amount)}</strong></div>
       <div class="detail-stat"><span>Reste dû</span><strong>${formatMoney(due)}</strong></div>
       <div class="detail-stat"><span>Retard</span><strong>${item.delay} jours</strong></div>
       <div class="detail-stat"><span>Agent</span><strong>${item.agent}</strong></div>
+      <div class="detail-stat"><span>Téléphone</span><strong>${item.phone}</strong></div>
+      <div class="detail-stat"><span>Email</span><strong>${item.email}</strong></div>
     </div>
 
     ${item.archived ? `<div class="settled-note archive-note"><strong>Dossier archivé</strong><span>Ce dossier est conservé dans l'historique. Réactive-le si tu veux reprendre les relances ou les paiements.</span></div>` : ""}
@@ -741,7 +811,8 @@ function registerReminder(id, channel, note = "", nextAction = "Suivi de relance
   saveCases();
   refreshViews();
   openDrawer(id);
-  toast(`${label} enregistré pour ${item.client}`);
+  const opened = openCommunicationLink(item, channel, note);
+  toast(opened ? `${label} préparé pour ${item.client}` : `${label} enregistré pour ${item.client}`);
 }
 
 function saveReminderFromForm(form) {
@@ -874,6 +945,7 @@ function exportCases() {
       <td>${escapeHtml(item.client)}</td>
       <td>${escapeHtml(item.contact)}</td>
       <td>${escapeHtml(item.phone)}</td>
+      <td>${escapeHtml(item.email)}</td>
       <td>${item.amount}</td>
       <td>${item.paid}</td>
       <td>${remainingAmount(item)}</td>
@@ -899,7 +971,7 @@ function exportCases() {
           table { width: 100%; border-collapse: collapse; }
           th { background: #007a72; color: #ffffff; }
           th, td { border: 1px solid #dfe4e7; padding: 8px; text-align: left; }
-          td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8) { text-align: right; }
+          td:nth-child(6), td:nth-child(7), td:nth-child(8), td:nth-child(9) { text-align: right; }
         </style>
       </head>
       <body>
@@ -919,6 +991,7 @@ function exportCases() {
               <th>Débiteur</th>
               <th>Contact</th>
               <th>Téléphone</th>
+              <th>Email</th>
               <th>Montant initial</th>
               <th>Payé</th>
               <th>Reste dû</th>
@@ -931,7 +1004,7 @@ function exportCases() {
               <th>Prochaine échéance</th>
             </tr>
           </thead>
-          <tbody>${tableRows || `<tr><td colspan="14">Aucun dossier exporté.</td></tr>`}</tbody>
+          <tbody>${tableRows || `<tr><td colspan="15">Aucun dossier exporté.</td></tr>`}</tbody>
         </table>
       </body>
     </html>
@@ -983,7 +1056,7 @@ function printCasePdf(id) {
         <header>
           <p class="muted">Fiche dossier Recouvria</p>
           <h1>${escapeHtml(item.client)}</h1>
-          <p>${escapeHtml(item.id)} - ${escapeHtml(item.contact)} - ${escapeHtml(item.phone)}</p>
+          <p>${escapeHtml(item.id)} - ${escapeHtml(item.contact)} - ${escapeHtml(item.phone)} - ${escapeHtml(item.email)}</p>
         </header>
         <section class="grid">
           <div class="box"><span>Montant initial</span><strong>${formatMoney(item.amount)}</strong></div>
@@ -1095,6 +1168,7 @@ function openCaseForm(id = "") {
     client: "",
     contact: "",
     phone: "",
+    email: "",
     amount: 0,
     paid: 0,
     delay: 0,
@@ -1128,6 +1202,10 @@ function openCaseForm(id = "") {
       <label>
         <span>Téléphone</span>
         <input name="phone" value="${escapeHtml(item.phone)}" required />
+      </label>
+      <label>
+        <span>Email</span>
+        <input name="email" type="email" value="${escapeHtml(item.email || "")}" required />
       </label>
       <label>
         <span>Agent responsable</span>
@@ -1193,6 +1271,7 @@ function saveCaseFromForm(form) {
     client: fieldValue(form, "client").trim(),
     contact: fieldValue(form, "contact").trim(),
     phone: fieldValue(form, "phone").trim(),
+    email: fieldValue(form, "email").trim(),
     amount,
     paid,
     delay: Math.max(0, Number(fieldValue(form, "delay")) || 0),
