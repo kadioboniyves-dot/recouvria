@@ -818,6 +818,99 @@ function renderOrderSheet() {
   `).join("");
 }
 
+function downloadHtmlExcel(html, filename) {
+  const blob = new Blob([`\ufeff${html}`], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportOrdersExcel(rows = orders, title = "Commandes Recouvria", filename = "") {
+  const safeRows = rows.slice();
+  const total = safeRows.reduce((sum, item) => sum + item.total, 0);
+  const unpaid = safeRows.filter((item) => item.status !== "Payée").reduce((sum, item) => sum + item.total, 0);
+  const generatedAt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeStyle: "short" }).format(new Date());
+  const tableRows = safeRows.map((item) => `
+    <tr>
+      <td>${escapeHtml(item.orderRef || item.id)}</td>
+      <td>${escapeHtml(item.id)}</td>
+      <td>${escapeHtml(item.client)}</td>
+      <td>${escapeHtml(item.product)}</td>
+      <td>${item.quantity}</td>
+      <td>${item.unitPrice}</td>
+      <td>${item.total}</td>
+      <td>${escapeHtml(item.date)}</td>
+      <td>${escapeHtml(item.status)}</td>
+      <td>${escapeHtml(item.caseId || "")}</td>
+    </tr>
+  `).join("");
+  const html = `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; color: #1f2428; }
+          h1 { margin-bottom: 4px; }
+          .meta { color: #657079; margin-bottom: 18px; }
+          .summary { margin-bottom: 18px; border-collapse: collapse; }
+          .summary td { padding: 8px 14px; border: 1px solid #dfe4e7; font-weight: 700; }
+          table { width: 100%; border-collapse: collapse; }
+          th { background: #007a72; color: #ffffff; }
+          th, td { border: 1px solid #dfe4e7; padding: 8px; text-align: left; }
+          td:nth-child(5), td:nth-child(6), td:nth-child(7) { text-align: right; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        <p class="meta">Généré le ${escapeHtml(generatedAt)} - ${safeRows.length} ligne(s)</p>
+        <table class="summary">
+          <tr>
+            <td>Total commandes : ${formatMoney(total)}</td>
+            <td>Total à recouvrer : ${formatMoney(unpaid)}</td>
+          </tr>
+        </table>
+        <table>
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Ligne</th>
+              <th>Client</th>
+              <th>Produit</th>
+              <th>Quantité</th>
+              <th>Prix unitaire</th>
+              <th>Total</th>
+              <th>Date</th>
+              <th>Statut</th>
+              <th>Dossier</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows || `<tr><td colspan="10">Aucune commande à exporter.</td></tr>`}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+  const exportName = filename || `recouvria-commandes-${new Date().toISOString().slice(0, 10)}.xls`;
+  downloadHtmlExcel(html, exportName);
+  toast("Export Excel des commandes généré");
+}
+
+function exportCaseOrdersExcel(id) {
+  const item = getCase(id);
+  if (!item) return;
+  const rows = getOrdersForCase(item);
+  if (!rows.length) {
+    toast("Aucune commande liée à ce dossier");
+    return;
+  }
+  const slug = normalizeHeader(item.client).slice(0, 28) || "client";
+  exportOrdersExcel(rows, `Commandes - ${item.client}`, `recouvria-commandes-${slug}-${new Date().toISOString().slice(0, 10)}.xls`);
+}
+
 function toggleOrderSheet() {
   const panel = document.querySelector("#orderSheetPanel");
   if (!panel) return;
@@ -897,6 +990,7 @@ function openDrawer(id) {
     ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
       <button class="secondary-button" type="button" data-restore-case="${item.id}">Réactiver</button>
       <button class="danger-button" type="button" data-delete-case="${item.id}">Supprimer</button>
       <button class="secondary-button" type="button" disabled>Dossier archivé</button>
@@ -905,6 +999,7 @@ function openDrawer(id) {
       ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
       <button class="secondary-button" type="button" data-archive-case="${item.id}">Archiver</button>
       <button class="danger-button" type="button" data-delete-case="${item.id}">Supprimer</button>
       <button class="secondary-button" type="button" disabled>Paiement soldé</button>
@@ -914,6 +1009,7 @@ function openDrawer(id) {
       : `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
       <button class="primary-button" type="button" data-payment-form="${item.id}">Encaisser paiement</button>
       <button class="secondary-button" type="button" data-payment-full="${item.id}">Encaisser tout</button>
       <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="call">Appeler</button>
@@ -1934,6 +2030,7 @@ function bindEvents() {
     const resetOrderButton = closestAction(event.target, "[data-reset-order-form]");
     const addSheetRowButton = closestAction(event.target, "[data-add-sheet-row]");
     const saveSheetButton = closestAction(event.target, "[data-save-sheet]");
+    const exportCaseOrdersButton = closestAction(event.target, "[data-export-case-orders]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -1971,6 +2068,7 @@ function bindEvents() {
     if (resetOrderButton) resetOrderForm();
     if (addSheetRowButton) addOrderSheetRow();
     if (saveSheetButton) saveOrderSheet();
+    if (exportCaseOrdersButton) exportCaseOrdersExcel(exportCaseOrdersButton.dataset.exportCaseOrders);
     if (actionButton) toast(`${actionButton.dataset.action} pour ${actionButton.dataset.id}`);
   });
 
@@ -1998,6 +2096,7 @@ function bindEvents() {
   document.querySelector("#newCaseButton").addEventListener("click", () => openCaseForm());
   document.querySelector("#promiseButton").addEventListener("click", () => openPromiseForm());
   document.querySelector("#orderSheetButton").addEventListener("click", toggleOrderSheet);
+  document.querySelector("#exportOrdersButton").addEventListener("click", () => exportOrdersExcel());
   document.querySelector("#orderImport").addEventListener("change", (event) => {
     handleOrderImport(event.target.files?.[0]);
     event.target.value = "";
