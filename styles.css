@@ -25,6 +25,11 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -45,6 +50,7 @@ select {
 
 button {
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .sr-only {
@@ -783,6 +789,7 @@ select:focus,
 
 .table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -1200,10 +1207,14 @@ td small {
     display: flex;
     gap: 8px;
     overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: 2px;
   }
 
   .nav-item {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
     white-space: nowrap;
     width: auto;
   }
@@ -1231,8 +1242,38 @@ td small {
 }
 
 @media (max-width: 680px) {
+  body {
+    background: var(--page);
+  }
+
+  .sidebar {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .brand-mark svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-list {
+    margin: 0 -4px;
+    padding: 0 4px 6px;
+  }
+
   .workspace {
-    padding: 16px;
+    padding: 12px;
+  }
+
+  .topbar {
+    gap: 12px;
+    margin-bottom: 14px;
   }
 
   .topbar-actions,
@@ -1241,9 +1282,35 @@ td small {
     width: 100%;
   }
 
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-field {
+    grid-column: 1 / -1;
+  }
+
+  .section-heading,
+  .toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .section-heading .inline-actions,
+  .toolbar {
+    width: 100%;
+  }
+
+  .section-heading .inline-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   .demo-hero {
     min-height: auto;
-    padding: 20px;
+    padding: 18px;
   }
 
   .demo-copy h2 {
@@ -1254,6 +1321,10 @@ td small {
   .demo-copy p,
   .demo-actions button {
     overflow-wrap: anywhere;
+  }
+
+  .demo-preview {
+    padding: 12px;
   }
 
   .kpi-grid,
@@ -1278,6 +1349,10 @@ td small {
     overflow-x: auto;
   }
 
+  .segmented button {
+    min-width: max-content;
+  }
+
   .search-field input,
   .toolbar select,
   #orderExportClient,
@@ -1288,6 +1363,110 @@ td small {
 
   .danger-button {
     width: 100%;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .danger-button,
+  .icon-button,
+  select,
+  .search-field input,
+  .case-form input,
+  .case-form select,
+  .case-form textarea {
+    min-height: 44px;
+  }
+
+  .surface {
+    padding: 14px;
+  }
+
+  .table-surface {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  table,
+  .order-table,
+  .sheet-table {
+    min-width: 0;
+  }
+
+  table,
+  thead,
+  tbody,
+  tr,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tr {
+    margin-bottom: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+  }
+
+  td {
+    display: grid;
+    grid-template-columns: minmax(96px, 36%) minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--line);
+    overflow-wrap: anywhere;
+  }
+
+  td:last-child {
+    border-bottom: 0;
+  }
+
+  td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  td[colspan] {
+    display: block;
+  }
+
+  td[colspan]::before {
+    content: "";
+  }
+
+  .sheet-table td {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .sheet-table td::before {
+    font-size: 12px;
+  }
+
+  .mini-actions {
+    flex-wrap: wrap;
+  }
+
+  .mini-actions button {
+    width: 42px;
+    height: 42px;
   }
 
   .linked-orders article {
@@ -1319,8 +1498,38 @@ td small {
     padding: 18px;
   }
 
-  th,
-  td {
+  .drawer-actions {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .workspace {
+    padding: 10px;
+  }
+
+  .topbar-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-copy h2 {
+    font-size: 24px;
+  }
+
+  .preview-header,
+  .preview-row,
+  .channel-row,
+  .agent-row {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi,
+  .surface {
     padding: 12px;
+  }
+
+  td {
+    grid-template-columns: 1fr;
+    gap: 6px;
   }
 }

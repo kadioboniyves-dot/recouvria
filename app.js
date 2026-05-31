@@ -545,14 +545,14 @@ function renderTable() {
     const settled = remainingAmount(item) <= 0 || item.status === "Clôturé";
     return `
     <tr class="${item.archived ? "archived-row" : ""}">
-      <td><strong>${item.id}</strong><small>${item.nextDate}</small></td>
-      <td><strong>${item.client}</strong><small>${item.contact} - ${item.phone}</small><small>${item.email}</small></td>
-      <td class="amount">${formatMoney(remainingAmount(item))}</td>
-      <td>${item.delay} jours</td>
-      <td><span class="badge ${item.risk}">${riskLabel(item.risk)}</span></td>
-      <td>${item.agent}</td>
-      <td><span class="badge ${item.archived ? "archived" : statusClass(item)}">${item.archived ? "Archivé" : item.status}</span></td>
-      <td>
+      <td data-label="Dossier"><strong>${item.id}</strong><small>${item.nextDate}</small></td>
+      <td data-label="Débiteur"><strong>${item.client}</strong><small>${item.contact} - ${item.phone}</small><small>${item.email}</small></td>
+      <td class="amount" data-label="Montant">${formatMoney(remainingAmount(item))}</td>
+      <td data-label="Retard">${item.delay} jours</td>
+      <td data-label="Risque"><span class="badge ${item.risk}">${riskLabel(item.risk)}</span></td>
+      <td data-label="Agent">${item.agent}</td>
+      <td data-label="Statut"><span class="badge ${item.archived ? "archived" : statusClass(item)}">${item.archived ? "Archivé" : item.status}</span></td>
+      <td data-label="Action">
         <div class="mini-actions">
           <button type="button" title="Ouvrir" data-open="${item.id}">O</button>
           <button type="button" title="Modifier" data-edit="${item.id}">M</button>
@@ -793,12 +793,12 @@ function renderOrders() {
 
   orderTable.innerHTML = orders.map((item) => `
     <tr>
-      <td><strong>${escapeHtml(item.orderRef || item.id)}</strong><small>Ligne ${escapeHtml(item.id)} - ${escapeHtml(item.date)}</small></td>
-      <td><strong>${escapeHtml(item.client)}</strong>${item.caseId ? `<small>Dossier ${escapeHtml(item.caseId)}</small>` : "<small>Aucun dossier lié</small>"}</td>
-      <td><strong>${escapeHtml(item.product)}</strong><small>${item.quantity} x ${formatMoney(item.unitPrice)}</small></td>
-      <td class="amount">${formatMoney(item.total)}</td>
-      <td><span class="badge ${orderStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
-      <td>
+      <td data-label="Commande"><strong>${escapeHtml(item.orderRef || item.id)}</strong><small>Ligne ${escapeHtml(item.id)} - ${escapeHtml(item.date)}</small></td>
+      <td data-label="Client"><strong>${escapeHtml(item.client)}</strong>${item.caseId ? `<small>Dossier ${escapeHtml(item.caseId)}</small>` : "<small>Aucun dossier lié</small>"}</td>
+      <td data-label="Produit"><strong>${escapeHtml(item.product)}</strong><small>${item.quantity} x ${formatMoney(item.unitPrice)}</small></td>
+      <td class="amount" data-label="Total">${formatMoney(item.total)}</td>
+      <td data-label="Statut"><span class="badge ${orderStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
+      <td data-label="Action">
         <div class="mini-actions">
           <button type="button" title="Générer dossier" ${item.status === "Payée" ? "disabled" : `data-generate-case="${escapeHtml(item.id)}"`}>G</button>
           <button type="button" title="Ouvrir dossier" ${item.caseId ? `data-open="${escapeHtml(item.caseId)}"` : "disabled"}>O</button>
@@ -814,13 +814,13 @@ function renderOrderSheet() {
   if (!body) return;
   body.innerHTML = Array.from({ length: sheetRows }, (_, index) => `
     <tr>
-      <td><input data-sheet-field="orderRef" placeholder="BC-2026-${String(index + 1).padStart(3, "0")}" /></td>
-      <td><input data-sheet-field="client" list="clientList" placeholder="Client" /></td>
-      <td><input data-sheet-field="product" placeholder="Produit commandé" /></td>
-      <td><input data-sheet-field="quantity" type="number" min="1" step="1" value="1" /></td>
-      <td><input data-sheet-field="unitPrice" type="number" min="0" step="1000" placeholder="0" /></td>
-      <td><input data-sheet-field="date" type="date" value="${todayInputValue()}" /></td>
-      <td>
+      <td data-label="Référence"><input data-sheet-field="orderRef" placeholder="BC-2026-${String(index + 1).padStart(3, "0")}" /></td>
+      <td data-label="Client"><input data-sheet-field="client" list="clientList" placeholder="Client" /></td>
+      <td data-label="Produit"><input data-sheet-field="product" placeholder="Produit commandé" /></td>
+      <td data-label="Quantité"><input data-sheet-field="quantity" type="number" min="1" step="1" value="1" /></td>
+      <td data-label="Prix unitaire"><input data-sheet-field="unitPrice" type="number" min="0" step="1000" placeholder="0" /></td>
+      <td data-label="Date"><input data-sheet-field="date" type="date" value="${todayInputValue()}" /></td>
+      <td data-label="Statut">
         <select data-sheet-field="status">
           ${orderStatuses.map((status) => `<option>${status}</option>`).join("")}
         </select>
