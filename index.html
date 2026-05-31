@@ -278,6 +278,7 @@
                 <div class="inline-actions">
                   <label class="secondary-button file-button" for="orderImport">Importer Excel</label>
                   <input id="orderImport" type="file" accept=".csv,.tsv,.txt" hidden />
+                  <button class="secondary-button" id="orderSheetButton" type="button">Tableau Excel</button>
                 </div>
               </div>
               <p class="helper-text">Import CSV/TSV : référence, client, produit, quantité, prix unitaire, total, date, statut. Toutes les lignes du même client sont totalisées dans le portefeuille.</p>
@@ -333,6 +334,35 @@
             </section>
           </div>
 
+          <section class="surface order-sheet-panel" id="orderSheetPanel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Tableau Excel interne</p>
+                <h2>Liste des commandes par client</h2>
+              </div>
+              <div class="inline-actions">
+                <button class="secondary-button" type="button" data-add-sheet-row>Ajouter ligne</button>
+                <button class="primary-button" type="button" data-save-sheet>Enregistrer dans portefeuille</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="sheet-table">
+                <thead>
+                  <tr>
+                    <th>Référence</th>
+                    <th>Client</th>
+                    <th>Produit</th>
+                    <th>Quantité</th>
+                    <th>Prix unitaire</th>
+                    <th>Date</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="orderSheetBody"></tbody>
+              </table>
+            </div>
+          </section>
+
           <section class="surface table-surface order-table-surface">
             <div class="table-wrap">
               <table class="order-table">
@@ -386,6 +416,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=24"></script>
   </body>
 </html>

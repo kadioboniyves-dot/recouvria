@@ -892,6 +892,29 @@ td small {
   min-width: 980px;
 }
 
+.order-sheet-panel {
+  margin-top: 16px;
+}
+
+.sheet-table {
+  min-width: 1040px;
+}
+
+.sheet-table input,
+.sheet-table select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: #ffffff;
+}
+
+.sheet-table td {
+  padding: 8px;
+}
+
 .linked-orders {
   display: grid;
   gap: 8px;

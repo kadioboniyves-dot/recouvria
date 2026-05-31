@@ -186,6 +186,7 @@ let activeFilter = "all";
 let activeAgent = "all";
 let activeStatus = "active";
 let searchTerm = "";
+let sheetRows = 5;
 
 const statusOptions = ["Nouveau", "Relancé", "Négociation", "Promesse", "Précontentieux", "Contentieux", "Clôturé"];
 const riskOptions = [
@@ -796,6 +797,76 @@ function renderOrders() {
       </td>
     </tr>
   `).join("") || `<tr><td colspan="6">Aucune commande enregistrée.</td></tr>`;
+}
+
+function renderOrderSheet() {
+  const body = document.querySelector("#orderSheetBody");
+  if (!body) return;
+  body.innerHTML = Array.from({ length: sheetRows }, (_, index) => `
+    <tr>
+      <td><input data-sheet-field="orderRef" placeholder="BC-2026-${String(index + 1).padStart(3, "0")}" /></td>
+      <td><input data-sheet-field="client" list="clientList" placeholder="Client" /></td>
+      <td><input data-sheet-field="product" placeholder="Produit commandé" /></td>
+      <td><input data-sheet-field="quantity" type="number" min="1" step="1" value="1" /></td>
+      <td><input data-sheet-field="unitPrice" type="number" min="0" step="1000" placeholder="0" /></td>
+      <td><input data-sheet-field="date" type="date" value="${todayInputValue()}" /></td>
+      <td>
+        <select data-sheet-field="status">
+          ${orderStatuses.map((status) => `<option>${status}</option>`).join("")}
+        </select>
+      </td>
+    </tr>
+  `).join("");
+}
+
+function toggleOrderSheet() {
+  const panel = document.querySelector("#orderSheetPanel");
+  if (!panel) return;
+  panel.hidden = false;
+  if (!document.querySelector("#orderSheetBody")?.children.length) renderOrderSheet();
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function addOrderSheetRow() {
+  sheetRows += 1;
+  renderOrderSheet();
+}
+
+function saveOrderSheet() {
+  const rows = [...document.querySelectorAll("#orderSheetBody tr")];
+  let saved = 0;
+  rows.forEach((row) => {
+    const value = (field) => row.querySelector(`[data-sheet-field="${field}"]`)?.value?.trim() || "";
+    const quantity = Math.max(0, Number(value("quantity")) || 0);
+    const unitPrice = parseAmount(value("unitPrice"));
+    const order = {
+      id: nextOrderId(),
+      orderRef: value("orderRef") || `BC-${todayInputValue().replaceAll("-", "")}-${saved + 1}`,
+      client: value("client"),
+      product: value("product"),
+      quantity,
+      unitPrice,
+      total: quantity * unitPrice,
+      date: value("date") || todayInputValue(),
+      status: value("status") || "Non payée",
+      caseId: ""
+    };
+    if (!order.client || !order.product || order.total <= 0) return;
+    orders.unshift(order);
+    syncOrderCase(order);
+    saved += 1;
+  });
+
+  if (!saved) {
+    toast("Aucune ligne valide à enregistrer");
+    return;
+  }
+
+  saveOrders();
+  saveCases();
+  refreshViews();
+  renderOrderSheet();
+  toast(`${saved} ligne(s) enregistrée(s) et totalisée(s) dans le portefeuille`);
 }
 
 function openDrawer(id) {
@@ -1862,6 +1933,8 @@ function bindEvents() {
     const generateCaseButton = closestAction(event.target, "[data-generate-case]");
     const deleteOrderButton = closestAction(event.target, "[data-delete-order]");
     const resetOrderButton = closestAction(event.target, "[data-reset-order-form]");
+    const addSheetRowButton = closestAction(event.target, "[data-add-sheet-row]");
+    const saveSheetButton = closestAction(event.target, "[data-save-sheet]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -1897,6 +1970,8 @@ function bindEvents() {
     if (generateCaseButton) generateCaseFromOrder(generateCaseButton.dataset.generateCase);
     if (deleteOrderButton) deleteOrder(deleteOrderButton.dataset.deleteOrder);
     if (resetOrderButton) resetOrderForm();
+    if (addSheetRowButton) addOrderSheetRow();
+    if (saveSheetButton) saveOrderSheet();
     if (actionButton) toast(`${actionButton.dataset.action} pour ${actionButton.dataset.id}`);
   });
 
@@ -1923,6 +1998,7 @@ function bindEvents() {
   document.querySelector("#exportButton").addEventListener("click", exportCases);
   document.querySelector("#newCaseButton").addEventListener("click", () => openCaseForm());
   document.querySelector("#promiseButton").addEventListener("click", () => openPromiseForm());
+  document.querySelector("#orderSheetButton").addEventListener("click", toggleOrderSheet);
   document.querySelector("#orderImport").addEventListener("change", (event) => {
     handleOrderImport(event.target.files?.[0]);
     event.target.value = "";
@@ -1942,6 +2018,7 @@ function init() {
   renderPayments();
   renderReports();
   renderOrders();
+  renderOrderSheet();
   resetOrderForm();
   bindEvents();
 }
