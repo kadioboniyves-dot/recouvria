@@ -280,7 +280,7 @@
                   <input id="orderImport" type="file" accept=".csv,.tsv,.txt" hidden />
                 </div>
               </div>
-              <p class="helper-text">Import CSV/TSV exporté depuis Excel : client, produit, quantité, prix unitaire, total, date, statut.</p>
+              <p class="helper-text">Import CSV/TSV : référence, client, produit, quantité, prix unitaire, total, date, statut.</p>
               <div class="order-summary" id="orderSummary"></div>
             </section>
 
@@ -292,6 +292,10 @@
                 </div>
               </div>
               <form class="case-form" id="orderForm" data-order-id="">
+                <label>
+                  <span>Référence commande</span>
+                  <input name="orderRef" placeholder="Ex : BC-2026-001" />
+                </label>
                 <label>
                   <span>Client</span>
                   <input name="client" list="clientList" required placeholder="Nom du client" />
@@ -322,7 +326,7 @@
                   </select>
                 </label>
                 <div class="form-actions">
-                  <button class="primary-button" type="button" data-save-form="orderForm">Enregistrer commande</button>
+                  <button class="primary-button" type="button" data-save-form="orderForm">Ajouter ligne produit</button>
                   <button class="secondary-button" type="button" data-reset-order-form>Vider</button>
                 </div>
               </form>
@@ -334,7 +338,7 @@
               <table class="order-table">
                 <thead>
                   <tr>
-                    <th>Commande</th>
+                    <th>Commande / ligne</th>
                     <th>Client</th>
                     <th>Produit</th>
                     <th>Total</th>
@@ -382,6 +386,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=22"></script>
   </body>
 </html>

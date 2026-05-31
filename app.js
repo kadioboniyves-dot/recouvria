@@ -1,5 +1,5 @@
 const storageKey = "recouvriaCasesV3";
-const orderStorageKey = "recouvriaOrdersV1";
+const orderStorageKey = "recouvriaOrdersV2";
 
 const seedCases = [
   {
@@ -109,6 +109,7 @@ const seedCases = [
 const seedOrders = [
   {
     id: "CMD-2026-0001",
+    orderRef: "BC-2026-0518",
     client: "Clinique Saint Gabriel",
     product: "Consommables médicaux",
     quantity: 12,
@@ -120,6 +121,19 @@ const seedOrders = [
   },
   {
     id: "CMD-2026-0002",
+    orderRef: "BC-2026-0518",
+    client: "Clinique Saint Gabriel",
+    product: "Kits de stérilisation",
+    quantity: 5,
+    unitPrice: 180000,
+    total: 900000,
+    date: "2026-05-18",
+    status: "Non payée",
+    caseId: ""
+  },
+  {
+    id: "CMD-2026-0003",
+    orderRef: "BC-2026-0520",
     client: "Noura Distribution",
     product: "Lots de marchandises",
     quantity: 8,
@@ -130,7 +144,8 @@ const seedOrders = [
     caseId: ""
   },
   {
-    id: "CMD-2026-0003",
+    id: "CMD-2026-0004",
+    orderRef: "BC-2026-0522",
     client: "Logis Afrique",
     product: "Prestations logistiques",
     quantity: 3,
@@ -263,6 +278,7 @@ function normalizeOrders(items) {
     const total = parseAmount(item.total) || quantity * unitPrice;
     return {
       id: item.id || `CMD-2026-${String(index + 1).padStart(4, "0")}`,
+      orderRef: item.orderRef || item.commandRef || item.reference || item.id || `BC-2026-${String(index + 1).padStart(4, "0")}`,
       client: String(item.client || "").trim(),
       product: String(item.product || "").trim(),
       quantity,
@@ -651,12 +667,28 @@ function clientOptions() {
 }
 
 function getOrdersForCase(item) {
-  return orders.filter((order) => order.caseId === item.id || order.client.toLowerCase() === item.client.toLowerCase());
+  return orders.filter((order) => order.caseId === item.id || (!order.caseId && order.client.toLowerCase() === item.client.toLowerCase()));
+}
+
+function orderGroupKey(order) {
+  return `${String(order.client || "").trim().toLowerCase()}::${String(order.orderRef || order.id).trim().toLowerCase()}`;
+}
+
+function getOrderGroup(order) {
+  const key = orderGroupKey(order);
+  return orders.filter((item) => orderGroupKey(item) === key);
 }
 
 function syncOrderCase(order) {
-  const existingCase = order.caseId ? getCase(order.caseId) : null;
-  if (order.status === "Payée") {
+  const group = getOrderGroup(order);
+  const groupOrders = group.length ? group : [order];
+  const unpaidOrders = groupOrders.filter((item) => item.status !== "Payée");
+  const total = unpaidOrders.reduce((sum, item) => sum + item.total, 0);
+  const existingCaseId = groupOrders.find((item) => item.caseId)?.caseId || "";
+  const existingCase = existingCaseId ? getCase(existingCaseId) : null;
+  const label = `${order.orderRef || order.id}`;
+
+  if (!unpaidOrders.length || total <= 0) {
     if (existingCase) {
       existingCase.paid = existingCase.amount;
       existingCase.status = "Clôturé";
@@ -664,17 +696,21 @@ function syncOrderCase(order) {
       existingCase.promise = "";
       existingCase.nextAction = "Commande payée";
       existingCase.nextDate = "Aucune";
-      addHistory(existingCase, `Commande ${order.id} marquée payée le ${todayLabel()}`);
+      addHistory(existingCase, `Commande ${label} marquée payée le ${todayLabel()}`);
+      groupOrders.forEach((item) => { item.caseId = existingCase.id; });
     }
     return;
   }
 
+  const partial = groupOrders.some((item) => item.status === "Partiellement payée");
   if (existingCase) {
-    existingCase.amount = order.total;
-    existingCase.status = order.status === "Partiellement payée" ? "Négociation" : existingCase.status;
-    existingCase.nextAction = "Suivi commande non payée";
+    existingCase.amount = total;
+    existingCase.status = partial ? "Négociation" : "Nouveau";
+    existingCase.risk = partial ? "medium" : "high";
+    existingCase.nextAction = "Suivi commande multi-produits";
     existingCase.nextDate = "Dans 48h";
-    addHistory(existingCase, `Commande ${order.id} mise à jour le ${todayLabel()}`);
+    addHistory(existingCase, `Commande ${label} mise à jour : ${unpaidOrders.length} produit(s), total ${formatMoney(total)}`);
+    groupOrders.forEach((item) => { item.caseId = existingCase.id; });
     return;
   }
 
@@ -685,20 +721,24 @@ function syncOrderCase(order) {
     contact: knownClient?.contact || "Service administratif",
     phone: knownClient?.phone || "+225 00 00 00 00 00",
     email: knownClient?.email || defaultEmail(order),
-    amount: order.total,
+    amount: total,
     paid: 0,
     delay: 0,
-    risk: order.status === "Partiellement payée" ? "medium" : "high",
+    risk: partial ? "medium" : "high",
     archived: false,
     agent: knownClient?.agent || agents[0].name,
-    status: order.status === "Partiellement payée" ? "Négociation" : "Nouveau",
-    nextAction: "Relance commande non payée",
+    status: partial ? "Négociation" : "Nouveau",
+    nextAction: "Relance commande multi-produits",
     nextDate: "Aujourd'hui",
     promise: "",
-    history: [`Dossier généré depuis la commande ${order.id}`, `${order.product} - ${order.quantity} x ${formatMoney(order.unitPrice)}`]
+    history: [
+      `Dossier généré depuis la commande ${label}`,
+      `${unpaidOrders.length} produit(s) - total ${formatMoney(total)}`,
+      ...unpaidOrders.slice(0, 4).map((item) => `${item.product} - ${item.quantity} x ${formatMoney(item.unitPrice)}`)
+    ]
   };
   cases.unshift(newCase);
-  order.caseId = newCase.id;
+  groupOrders.forEach((item) => { item.caseId = newCase.id; });
 }
 
 function ensureOrderCases() {
@@ -724,7 +764,7 @@ function renderOrders() {
   clientList.innerHTML = clientOptions().map((client) => `<option value="${escapeHtml(client)}"></option>`).join("");
   const unpaidTotal = orders.filter((item) => item.status !== "Payée").reduce((sum, item) => sum + item.total, 0);
   const paidTotal = orders.filter((item) => item.status === "Payée").reduce((sum, item) => sum + item.total, 0);
-  const linkedCases = orders.filter((item) => item.caseId).length;
+  const linkedCases = new Set(orders.filter((item) => item.caseId).map((item) => item.caseId)).size;
   const summary = [
     ["Commandes", orders.length],
     ["Impayés commandes", formatMoney(unpaidTotal)],
@@ -741,7 +781,7 @@ function renderOrders() {
 
   orderTable.innerHTML = orders.map((item) => `
     <tr>
-      <td><strong>${escapeHtml(item.id)}</strong><small>${escapeHtml(item.date)}</small></td>
+      <td><strong>${escapeHtml(item.orderRef || item.id)}</strong><small>Ligne ${escapeHtml(item.id)} - ${escapeHtml(item.date)}</small></td>
       <td><strong>${escapeHtml(item.client)}</strong>${item.caseId ? `<small>Dossier ${escapeHtml(item.caseId)}</small>` : "<small>Aucun dossier lié</small>"}</td>
       <td><strong>${escapeHtml(item.product)}</strong><small>${item.quantity} x ${formatMoney(item.unitPrice)}</small></td>
       <td class="amount">${formatMoney(item.total)}</td>
@@ -772,7 +812,7 @@ function openDrawer(id) {
           <article>
             <div>
               <strong>${escapeHtml(order.product)}</strong>
-              <span>${escapeHtml(order.id)} - ${order.quantity} x ${formatMoney(order.unitPrice)}</span>
+              <span>${escapeHtml(order.orderRef || order.id)} - ${order.quantity} x ${formatMoney(order.unitPrice)}</span>
             </div>
             <div>
               <strong>${formatMoney(order.total)}</strong>
@@ -1362,9 +1402,10 @@ function resetOrderForm() {
   if (!form) return;
   form.dataset.orderId = "";
   form.reset();
+  form.querySelector("[name='orderRef']").value = "";
   form.querySelector("[name='date']").value = todayInputValue();
   form.querySelector("[name='status']").value = "Non payée";
-  form.querySelector("[data-save-form='orderForm']").textContent = "Enregistrer commande";
+  form.querySelector("[data-save-form='orderForm']").textContent = "Ajouter ligne produit";
 }
 
 function fillOrderForm(id) {
@@ -1372,6 +1413,7 @@ function fillOrderForm(id) {
   const form = document.querySelector("#orderForm");
   if (!order || !form) return;
   form.dataset.orderId = order.id;
+  form.querySelector("[name='orderRef']").value = order.orderRef || order.id;
   form.querySelector("[name='client']").value = order.client;
   form.querySelector("[name='product']").value = order.product;
   form.querySelector("[name='quantity']").value = order.quantity;
@@ -1388,6 +1430,7 @@ function saveOrderFromForm(form) {
   const unitPrice = parseAmount(fieldValue(form, "unitPrice"));
   const nextOrder = {
     id: form.dataset.orderId || nextOrderId(),
+    orderRef: fieldValue(form, "orderRef").trim() || form.dataset.orderId || nextOrderId(),
     client: fieldValue(form, "client").trim(),
     product: fieldValue(form, "product").trim(),
     quantity,
@@ -1403,16 +1446,16 @@ function saveOrderFromForm(form) {
     return;
   }
 
-  syncOrderCase(nextOrder);
   const index = orders.findIndex((item) => item.id === nextOrder.id);
   if (index >= 0) orders[index] = nextOrder;
   else orders.unshift(nextOrder);
+  syncOrderCase(nextOrder);
 
   saveOrders();
   saveCases();
   refreshViews();
   resetOrderForm();
-  toast(nextOrder.caseId ? `Commande enregistrée et liée au dossier ${nextOrder.caseId}` : "Commande enregistrée");
+  toast(nextOrder.caseId ? `Ligne produit enregistrée, commande totalisée dans ${nextOrder.caseId}` : "Ligne produit enregistrée");
 }
 
 function generateCaseFromOrder(id) {
@@ -1434,8 +1477,21 @@ function deleteOrder(id) {
   const order = getOrder(id);
   if (!order) return;
   if (!window.confirm(`Supprimer la commande ${order.id} ?`)) return;
+  const remainingGroup = getOrderGroup(order).filter((item) => item.id !== id);
+  const linkedCase = order.caseId ? getCase(order.caseId) : null;
   orders = orders.filter((item) => item.id !== id);
+  if (remainingGroup.length) {
+    syncOrderCase(remainingGroup[0]);
+  } else if (linkedCase) {
+    linkedCase.paid = linkedCase.amount;
+    linkedCase.status = "Clôturé";
+    linkedCase.risk = "low";
+    linkedCase.nextAction = "Commande supprimée";
+    linkedCase.nextDate = "Aucune";
+    addHistory(linkedCase, `Dernière ligne de commande ${order.orderRef || order.id} supprimée le ${todayLabel()}`);
+  }
   saveOrders();
+  saveCases();
   refreshViews();
   toast("Commande supprimée");
 }
@@ -1476,7 +1532,7 @@ function importOrdersFromText(text) {
   if (!lines.length) return 0;
   const delimiter = lines[0].includes("\t") ? "\t" : lines[0].includes(";") ? ";" : ",";
   const firstRow = parseDelimitedLine(lines[0], delimiter);
-  const expected = ["client", "produit", "quantite", "prixunitaire", "montanttotal", "datecommande", "statut"];
+  const expected = ["commande", "reference", "client", "produit", "quantite", "prixunitaire", "montanttotal", "datecommande", "statut"];
   const headers = firstRow.map(normalizeHeader);
   const hasHeader = expected.some((name) => headers.includes(name));
   const body = hasHeader ? lines.slice(1) : lines;
@@ -1493,8 +1549,9 @@ function importOrdersFromText(text) {
     const total = parseAmount(row[indexOf(["montant total", "montanttotal", "total"], 4)]) || quantity * unitPrice;
     const order = {
       id: nextOrderId(),
-      client: row[indexOf(["client", "debiteur", "débiteur"], 0)] || "",
-      product: row[indexOf(["produit", "article", "designation", "désignation"], 1)] || "",
+      orderRef: row[indexOf(["commande", "reference", "référence", "bon commande", "bondecommande"], 0)] || "",
+      client: row[indexOf(["client", "debiteur", "débiteur"], hasHeader ? 1 : 0)] || "",
+      product: row[indexOf(["produit", "article", "designation", "désignation"], hasHeader ? 2 : 1)] || "",
       quantity,
       unitPrice,
       total,
@@ -1502,9 +1559,10 @@ function importOrdersFromText(text) {
       status: orderStatuses.includes(row[indexOf(["statut", "status"], 6)]) ? row[indexOf(["statut", "status"], 6)] : "Non payée",
       caseId: ""
     };
+    order.orderRef = order.orderRef || `BC-${order.date.replaceAll("-", "")}-${normalizeHeader(order.client).slice(0, 10)}`;
     if (!order.client || !order.product || order.total <= 0) return;
-    syncOrderCase(order);
     orders.unshift(order);
+    syncOrderCase(order);
     imported += 1;
   });
 
