@@ -558,6 +558,10 @@ select:focus,
   justify-items: start;
 }
 
+.admin-grid {
+  grid-template-columns: 1fr;
+}
+
 .dashboard-grid .wide {
   grid-row: span 2;
 }

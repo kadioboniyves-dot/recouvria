@@ -789,7 +789,6 @@ function renderOrders() {
       <td><span class="badge ${orderStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
       <td>
         <div class="mini-actions">
-          <button type="button" title="Modifier" data-edit-order="${escapeHtml(item.id)}">M</button>
           <button type="button" title="Générer dossier" ${item.status === "Payée" ? "disabled" : `data-generate-case="${escapeHtml(item.id)}"`}>G</button>
           <button type="button" title="Ouvrir dossier" ${item.caseId ? `data-open="${escapeHtml(item.caseId)}"` : "disabled"}>O</button>
           <button type="button" title="Supprimer" data-delete-order="${escapeHtml(item.id)}">X</button>

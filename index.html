@@ -279,58 +279,11 @@
                   <label class="secondary-button file-button" for="orderImport">Importer Excel</label>
                   <input id="orderImport" type="file" accept=".csv,.tsv,.txt" hidden />
                   <button class="secondary-button" id="orderSheetButton" type="button">Tableau Excel</button>
+                  <datalist id="clientList"></datalist>
                 </div>
               </div>
               <p class="helper-text">Import CSV/TSV : référence, client, produit, quantité, prix unitaire, total, date, statut. Toutes les lignes du même client sont totalisées dans le portefeuille.</p>
               <div class="order-summary" id="orderSummary"></div>
-            </section>
-
-            <section class="surface">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Saisie interne</p>
-                  <h2>Ajouter une commande</h2>
-                </div>
-              </div>
-              <form class="case-form" id="orderForm" data-order-id="">
-                <label>
-                  <span>Référence commande</span>
-                  <input name="orderRef" placeholder="Ex : BC-2026-001" />
-                </label>
-                <label>
-                  <span>Client</span>
-                  <input name="client" list="clientList" required placeholder="Nom du client" />
-                  <datalist id="clientList"></datalist>
-                </label>
-                <label>
-                  <span>Produit</span>
-                  <input name="product" required placeholder="Produit ou prestation" />
-                </label>
-                <label>
-                  <span>Quantité</span>
-                  <input name="quantity" type="number" min="1" step="1" value="1" required />
-                </label>
-                <label>
-                  <span>Prix unitaire</span>
-                  <input name="unitPrice" type="number" min="0" step="1000" required />
-                </label>
-                <label>
-                  <span>Date commande</span>
-                  <input name="date" type="date" required />
-                </label>
-                <label>
-                  <span>Statut</span>
-                  <select name="status">
-                    <option>Non payée</option>
-                    <option>Partiellement payée</option>
-                    <option>Payée</option>
-                  </select>
-                </label>
-                <div class="form-actions">
-                  <button class="primary-button" type="button" data-save-form="orderForm">Ajouter ligne produit</button>
-                  <button class="secondary-button" type="button" data-reset-order-form>Vider</button>
-                </div>
-              </form>
             </section>
           </div>
 
@@ -416,6 +369,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=24"></script>
+    <script src="app.js?v=25"></script>
   </body>
 </html>
