@@ -279,6 +279,9 @@
                   <label class="secondary-button file-button" for="orderImport">Importer Excel</label>
                   <input id="orderImport" type="file" accept=".csv,.tsv,.txt" hidden />
                   <button class="secondary-button" id="orderSheetButton" type="button">Tableau Excel</button>
+                  <select id="orderExportClient" aria-label="Choisir le client à exporter">
+                    <option value="all">Tous les clients</option>
+                  </select>
                   <button class="secondary-button" id="exportOrdersButton" type="button">Exporter commandes</button>
                   <datalist id="clientList"></datalist>
                 </div>
@@ -370,6 +373,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=26"></script>
+    <script src="app.js?v=27"></script>
   </body>
 </html>

@@ -461,14 +461,17 @@ function getFilteredCases() {
 }
 
 function renderKpis() {
+  ensureOrderCases();
   const activeCases = cases.filter((item) => !item.archived);
   const totalDue = activeCases.reduce((sum, item) => sum + item.amount - item.paid, 0);
   const recovered = activeCases.reduce((sum, item) => sum + item.paid, 0);
   const urgent = activeCases.filter((item) => remainingAmount(item) > 0 && (item.risk === "high" || item.risk === "legal")).length;
   const promises = activeCases.filter((item) => remainingAmount(item) > 0 && item.promise).length;
+  const unpaidOrders = orders.filter((item) => item.status !== "Payée").reduce((sum, item) => sum + item.total, 0);
 
   const data = [
     ["C", "Créances nettes", formatMoney(totalDue), "+8 dossiers cette semaine", "var(--teal-soft)", "var(--teal)"],
+    ["O", "Commandes impayées", formatMoney(unpaidOrders), "Intégrées au portefeuille", "var(--blue-soft)", "var(--blue)"],
     ["R", "Recouvré", formatMoney(recovered), "Taux global 44%", "var(--green-soft)", "var(--green)"],
     ["U", "Dossiers urgents", urgent, "Priorité superviseur", "var(--red-soft)", "var(--red)"],
     ["P", "Promesses actives", promises, "A surveiller avant échéance", "var(--amber-soft)", "var(--amber)"]
@@ -758,11 +761,19 @@ function ensureOrderCases() {
 
 function renderOrders() {
   const clientList = document.querySelector("#clientList");
+  const exportClient = document.querySelector("#orderExportClient");
   const orderTable = document.querySelector("#orderTable");
   const orderSummary = document.querySelector("#orderSummary");
   if (!clientList || !orderTable || !orderSummary) return;
 
-  clientList.innerHTML = clientOptions().map((client) => `<option value="${escapeHtml(client)}"></option>`).join("");
+  const clients = clientOptions();
+  clientList.innerHTML = clients.map((client) => `<option value="${escapeHtml(client)}"></option>`).join("");
+  if (exportClient) {
+    const current = exportClient.value || "all";
+    exportClient.innerHTML = `<option value="all">Tous les clients</option>` +
+      clients.map((client) => `<option value="${escapeHtml(client)}">${escapeHtml(client)}</option>`).join("");
+    exportClient.value = clients.includes(current) ? current : "all";
+  }
   const unpaidTotal = orders.filter((item) => item.status !== "Payée").reduce((sum, item) => sum + item.total, 0);
   const paidTotal = orders.filter((item) => item.status === "Payée").reduce((sum, item) => sum + item.total, 0);
   const linkedCases = new Set(orders.filter((item) => item.caseId).map((item) => item.caseId)).size;
@@ -909,6 +920,18 @@ function exportCaseOrdersExcel(id) {
   }
   const slug = normalizeHeader(item.client).slice(0, 28) || "client";
   exportOrdersExcel(rows, `Commandes - ${item.client}`, `recouvria-commandes-${slug}-${new Date().toISOString().slice(0, 10)}.xls`);
+}
+
+function exportSelectedOrdersExcel() {
+  const client = document.querySelector("#orderExportClient")?.value || "all";
+  const rows = client === "all" ? orders : orders.filter((item) => item.client === client);
+  if (!rows.length) {
+    toast("Aucune commande pour ce client");
+    return;
+  }
+  const slug = client === "all" ? "tous-clients" : normalizeHeader(client).slice(0, 28);
+  const title = client === "all" ? "Commandes Recouvria - tous les clients" : `Commandes - ${client}`;
+  exportOrdersExcel(rows, title, `recouvria-commandes-${slug}-${new Date().toISOString().slice(0, 10)}.xls`);
 }
 
 function toggleOrderSheet() {
@@ -2096,7 +2119,7 @@ function bindEvents() {
   document.querySelector("#newCaseButton").addEventListener("click", () => openCaseForm());
   document.querySelector("#promiseButton").addEventListener("click", () => openPromiseForm());
   document.querySelector("#orderSheetButton").addEventListener("click", toggleOrderSheet);
-  document.querySelector("#exportOrdersButton").addEventListener("click", () => exportOrdersExcel());
+  document.querySelector("#exportOrdersButton").addEventListener("click", exportSelectedOrdersExcel);
   document.querySelector("#orderImport").addEventListener("change", (event) => {
     handleOrderImport(event.target.files?.[0]);
     event.target.value = "";
