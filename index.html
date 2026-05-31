@@ -188,6 +188,17 @@
             <select id="agentFilter" aria-label="Filtrer par agent">
               <option value="all">Tous les agents</option>
             </select>
+            <select id="statusFilter" aria-label="Filtrer par statut">
+              <option value="active">Dossiers actifs</option>
+              <option value="Nouveau">Nouveau</option>
+              <option value="Relancé">Relancé</option>
+              <option value="Négociation">Négociation</option>
+              <option value="Promesse">Promesse</option>
+              <option value="Précontentieux">Précontentieux</option>
+              <option value="Contentieux">Contentieux</option>
+              <option value="Clôturé">Clôturé</option>
+              <option value="archived">Archives</option>
+            </select>
           </div>
           <section class="surface table-surface">
             <div class="table-wrap">
@@ -280,6 +291,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=18"></script>
+    <script src="app.js?v=19"></script>
   </body>
 </html>

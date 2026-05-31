@@ -121,6 +121,7 @@ const steps = [
 
 let activeFilter = "all";
 let activeAgent = "all";
+let activeStatus = "active";
 let searchTerm = "";
 
 const statusOptions = ["Nouveau", "Relancé", "Négociation", "Promesse", "Précontentieux", "Contentieux", "Clôturé"];
@@ -161,7 +162,7 @@ function escapeHtml(value) {
 
 function normalizeCases(items) {
   return items.map((item) => {
-    const nextItem = { ...item, history: item.history || [] };
+    const nextItem = { ...item, archived: Boolean(item.archived), history: item.history || [] };
     const due = Math.max(0, Number(nextItem.amount) - Number(nextItem.paid));
     if (due === 0 && Number(nextItem.amount) > 0) {
       nextItem.paid = nextItem.amount;
@@ -242,7 +243,7 @@ function riskLabel(risk) {
 
 function statusClass(item) {
   if (item.status === "Clôturé") return "low";
-  if (item.status.includes("contentieux") || item.status.includes("Précontentieux")) return "legal";
+  if (item.status.toLowerCase().includes("contentieux") || item.status.includes("Précontentieux")) return "legal";
   if (item.status.includes("Promesse")) return "promise";
   return "neutral";
 }
@@ -252,21 +253,28 @@ function getFilteredCases() {
     const haystack = `${item.id} ${item.client} ${item.contact} ${item.phone} ${item.agent} ${item.status}`.toLowerCase();
     const matchesSearch = haystack.includes(searchTerm);
     const matchesAgent = activeAgent === "all" || item.agent === activeAgent;
+    const matchesStatus =
+      activeStatus === "active"
+        ? !item.archived
+        : activeStatus === "archived"
+          ? item.archived
+          : !item.archived && item.status === activeStatus;
     const matchesFilter =
       activeFilter === "all" ||
       (activeFilter === "urgent" && (item.risk === "high" || item.risk === "legal")) ||
       (activeFilter === "promise" && item.promise) ||
       (activeFilter === "legal" && item.risk === "legal");
 
-    return matchesSearch && matchesAgent && matchesFilter;
+    return matchesSearch && matchesAgent && matchesStatus && matchesFilter;
   });
 }
 
 function renderKpis() {
-  const totalDue = cases.reduce((sum, item) => sum + item.amount - item.paid, 0);
-  const recovered = cases.reduce((sum, item) => sum + item.paid, 0);
-  const urgent = cases.filter((item) => remainingAmount(item) > 0 && (item.risk === "high" || item.risk === "legal")).length;
-  const promises = cases.filter((item) => remainingAmount(item) > 0 && item.promise).length;
+  const activeCases = cases.filter((item) => !item.archived);
+  const totalDue = activeCases.reduce((sum, item) => sum + item.amount - item.paid, 0);
+  const recovered = activeCases.reduce((sum, item) => sum + item.paid, 0);
+  const urgent = activeCases.filter((item) => remainingAmount(item) > 0 && (item.risk === "high" || item.risk === "legal")).length;
+  const promises = activeCases.filter((item) => remainingAmount(item) > 0 && item.promise).length;
 
   const data = [
     ["C", "Créances nettes", formatMoney(totalDue), "+8 dossiers cette semaine", "var(--teal-soft)", "var(--teal)"],
@@ -287,7 +295,7 @@ function renderKpis() {
 
 function renderPriorityList() {
   const priority = cases
-    .filter((item) => remainingAmount(item) > 0 && (item.risk === "high" || item.risk === "legal"))
+    .filter((item) => !item.archived && remainingAmount(item) > 0 && (item.risk === "high" || item.risk === "legal"))
     .slice(0, 4);
 
   document.querySelector("#priorityList").innerHTML = priority.map((item) => `
@@ -342,20 +350,20 @@ function renderTable() {
   document.querySelector("#caseTable").innerHTML = rows.map((item) => {
     const settled = remainingAmount(item) <= 0 || item.status === "Clôturé";
     return `
-    <tr>
+    <tr class="${item.archived ? "archived-row" : ""}">
       <td><strong>${item.id}</strong><small>${item.nextDate}</small></td>
       <td><strong>${item.client}</strong><small>${item.contact} - ${item.phone}</small></td>
       <td class="amount">${formatMoney(remainingAmount(item))}</td>
       <td>${item.delay} jours</td>
       <td><span class="badge ${item.risk}">${riskLabel(item.risk)}</span></td>
       <td>${item.agent}</td>
-      <td><span class="badge ${statusClass(item)}">${item.status}</span></td>
+      <td><span class="badge ${item.archived ? "archived" : statusClass(item)}">${item.archived ? "Archivé" : item.status}</span></td>
       <td>
         <div class="mini-actions">
           <button type="button" title="Ouvrir" data-open="${item.id}">O</button>
           <button type="button" title="Modifier" data-edit="${item.id}">M</button>
-          <button type="button" title="${settled ? "Dossier soldé" : "Relancer"}" ${settled ? "disabled" : `data-reminder-form="${item.id}"`}>R</button>
-          <button type="button" title="${settled ? "Dossier soldé" : "Paiement"}" ${settled ? "disabled" : `data-payment-form="${item.id}"`}>P</button>
+          <button type="button" title="${settled || item.archived ? "Action indisponible" : "Relancer"}" ${settled || item.archived ? "disabled" : `data-reminder-form="${item.id}"`}>R</button>
+          <button type="button" title="${settled || item.archived ? "Action indisponible" : "Paiement"}" ${settled || item.archived ? "disabled" : `data-payment-form="${item.id}"`}>P</button>
         </div>
       </td>
     </tr>
@@ -380,7 +388,7 @@ function renderRelances() {
 
   document.querySelector("#taskList").innerHTML = cases
     .slice()
-    .filter((item) => remainingAmount(item) > 0 && item.status !== "Clôturé")
+    .filter((item) => !item.archived && remainingAmount(item) > 0 && item.status !== "Clôturé")
     .sort((a, b) => b.delay - a.delay)
     .slice(0, 5)
     .map((item) => `
@@ -403,6 +411,7 @@ function renderRelances() {
 function renderPayments() {
   document.querySelector("#paymentGrid").innerHTML = cases
     .slice()
+    .filter((item) => !item.archived)
     .sort((a, b) => remainingAmount(b) - remainingAmount(a))
     .map((item) => {
       const settled = remainingAmount(item) <= 0 || item.status === "Clôturé";
@@ -429,16 +438,18 @@ function renderPayments() {
 }
 
 function renderReports() {
-  const due = cases.reduce((sum, item) => sum + item.amount - item.paid, 0);
-  const recovered = cases.reduce((sum, item) => sum + item.paid, 0);
-  const avgDelay = Math.round(cases.reduce((sum, item) => sum + item.delay, 0) / cases.length);
+  const activeCases = cases.filter((item) => !item.archived);
+  const due = activeCases.reduce((sum, item) => sum + item.amount - item.paid, 0);
+  const recovered = activeCases.reduce((sum, item) => sum + item.paid, 0);
+  const avgDelay = activeCases.length ? Math.round(activeCases.reduce((sum, item) => sum + item.delay, 0) / activeCases.length) : 0;
 
   const report = [
     ["Créances suivies", formatMoney(due)],
     ["Encaissements cumulés", formatMoney(recovered)],
     ["Retard moyen", `${avgDelay} jours`],
-    ["Dossiers précontentieux", cases.filter((item) => item.risk === "legal").length],
-    ["Promesses actives", cases.filter((item) => item.promise).length]
+    ["Dossiers précontentieux", activeCases.filter((item) => item.risk === "legal").length],
+    ["Promesses actives", activeCases.filter((item) => item.promise).length],
+    ["Dossiers archivés", cases.filter((item) => item.archived).length]
   ];
 
   document.querySelector("#reportList").innerHTML = report.map(([label, value]) => `
@@ -465,15 +476,27 @@ function openDrawer(id) {
   if (!item) return;
   const due = remainingAmount(item);
   const settled = due <= 0 || item.status === "Clôturé";
-  const actionPanel = settled
+  const actionPanel = item.archived
     ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      <button class="secondary-button" type="button" data-restore-case="${item.id}">Réactiver</button>
+      <button class="danger-button" type="button" data-delete-case="${item.id}">Supprimer</button>
+      <button class="secondary-button" type="button" disabled>Dossier archivé</button>
+    `
+    : settled
+      ? `
+      <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      <button class="secondary-button" type="button" data-archive-case="${item.id}">Archiver</button>
+      <button class="danger-button" type="button" data-delete-case="${item.id}">Supprimer</button>
       <button class="secondary-button" type="button" disabled>Paiement soldé</button>
       <button class="secondary-button" type="button" disabled>Relances désactivées</button>
       <button class="secondary-button" type="button" disabled>Aucun engagement requis</button>
     `
-    : `
+      : `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
       <button class="primary-button" type="button" data-payment-form="${item.id}">Encaisser paiement</button>
       <button class="secondary-button" type="button" data-payment-full="${item.id}">Encaisser tout</button>
       <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="call">Appeler</button>
@@ -481,6 +504,8 @@ function openDrawer(id) {
       <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="email">Email</button>
       <button class="secondary-button" type="button" data-reminder="${item.id}" data-channel="notice">Mise en demeure</button>
       <button class="secondary-button" type="button" data-promise-form="${item.id}">Engagement</button>
+      <button class="secondary-button" type="button" data-archive-case="${item.id}">Archiver</button>
+      <button class="danger-button" type="button" data-delete-case="${item.id}">Supprimer</button>
     `;
 
   document.querySelector("#drawerContent").innerHTML = `
@@ -490,7 +515,7 @@ function openDrawer(id) {
       <p>${item.contact} - ${item.phone}</p>
       <div class="meta-row">
         <span class="badge ${item.risk}">${riskLabel(item.risk)}</span>
-        <span class="badge ${statusClass(item)}">${item.status}</span>
+        <span class="badge ${item.archived ? "archived" : statusClass(item)}">${item.archived ? "Archivé" : item.status}</span>
       </div>
     </div>
 
@@ -501,7 +526,8 @@ function openDrawer(id) {
       <div class="detail-stat"><span>Agent</span><strong>${item.agent}</strong></div>
     </div>
 
-    ${settled ? `<div class="settled-note"><strong>Dossier soldé</strong><span>Les actions de paiement et de relance sont désactivées tant qu'il n'y a plus de montant à recouvrer.</span></div>` : ""}
+    ${item.archived ? `<div class="settled-note archive-note"><strong>Dossier archivé</strong><span>Ce dossier est conservé dans l'historique. Réactive-le si tu veux reprendre les relances ou les paiements.</span></div>` : ""}
+    ${!item.archived && settled ? `<div class="settled-note"><strong>Dossier soldé</strong><span>Les actions de paiement et de relance sont désactivées tant qu'il n'y a plus de montant à recouvrer.</span></div>` : ""}
 
     <section>
       <p class="eyebrow">Prochaine action</p>
@@ -529,6 +555,11 @@ function openDrawer(id) {
 function openReminderForm(id, channel = "call") {
   const item = getCase(id);
   if (!item) return;
+  if (item.archived) {
+    openDrawer(id);
+    toast("Ce dossier est archivé : réactive-le avant une relance");
+    return;
+  }
   if (remainingAmount(item) <= 0 || item.status === "Clôturé") {
     openDrawer(id);
     toast("Ce dossier est soldé : relance désactivée");
@@ -577,6 +608,11 @@ function openPaymentForm(id) {
   const item = getCase(id);
   if (!item) return;
   const remaining = remainingAmount(item);
+  if (item.archived) {
+    openDrawer(id);
+    toast("Ce dossier est archivé : réactive-le avant encaissement");
+    return;
+  }
   if (remaining <= 0 || item.status === "Clôturé") {
     openDrawer(id);
     toast("Ce dossier est déjà soldé");
@@ -627,12 +663,22 @@ function openPaymentForm(id) {
 
 function openPromiseForm(id = "") {
   const item = getCase(id);
+  const promiseCases = cases.filter((entry) => !entry.archived && remainingAmount(entry) > 0 && entry.status !== "Clôturé");
+  if (item?.archived) {
+    openDrawer(id);
+    toast("Ce dossier est archivé : réactive-le avant un engagement");
+    return;
+  }
   if (item && (remainingAmount(item) <= 0 || item.status === "Clôturé")) {
     openDrawer(id);
     toast("Ce dossier est soldé : aucun engagement requis");
     return;
   }
-  const selectedId = item?.id || cases[0]?.id || "";
+  const selectedId = item?.id || promiseCases[0]?.id || "";
+  if (!selectedId) {
+    toast("Aucun dossier actif disponible pour un engagement");
+    return;
+  }
 
   document.querySelector("#drawerContent").innerHTML = `
     <div class="detail-header">
@@ -645,7 +691,7 @@ function openPromiseForm(id = "") {
       <label class="full">
         <span>Dossier</span>
         <select name="caseId" ${item ? "disabled" : ""}>
-          ${cases.map((entry) => `<option value="${escapeHtml(entry.id)}" ${entry.id === selectedId ? "selected" : ""}>${escapeHtml(entry.id)} - ${escapeHtml(entry.client)}</option>`).join("")}
+          ${promiseCases.map((entry) => `<option value="${escapeHtml(entry.id)}" ${entry.id === selectedId ? "selected" : ""}>${escapeHtml(entry.id)} - ${escapeHtml(entry.client)}</option>`).join("")}
         </select>
       </label>
       <label class="full">
@@ -675,6 +721,11 @@ function openPromiseForm(id = "") {
 function registerReminder(id, channel, note = "", nextAction = "Suivi de relance", nextDate = "Dans 48h") {
   const item = getCase(id);
   if (!item) return;
+  if (item.archived) {
+    openDrawer(id);
+    toast("Ce dossier est archivé : relance non disponible");
+    return;
+  }
   if (remainingAmount(item) <= 0 || item.status === "Clôturé") {
     openDrawer(id);
     toast("Ce dossier est soldé : relance non nécessaire");
@@ -706,6 +757,11 @@ function saveReminderFromForm(form) {
 function savePaymentFromForm(form) {
   const item = getCase(form.dataset.caseId);
   if (!item) return;
+  if (item.archived) {
+    openDrawer(item.id);
+    toast("Ce dossier est archivé : paiement non disponible");
+    return;
+  }
 
   const amount = Math.max(0, Number(fieldValue(form, "amount")) || 0);
   const paidAmount = Math.min(amount, remainingAmount(item));
@@ -742,6 +798,11 @@ function savePaymentFromForm(form) {
 function registerFullPayment(id) {
   const item = getCase(id);
   if (!item) return;
+  if (item.archived) {
+    openDrawer(id);
+    toast("Ce dossier est archivé : paiement non disponible");
+    return;
+  }
   const amount = remainingAmount(item);
   if (amount <= 0) {
     toast("Dossier déjà soldé");
@@ -765,6 +826,11 @@ function savePromiseFromForm(form) {
   const id = form.dataset.caseId || fieldValue(form, "caseId");
   const item = getCase(id);
   if (!item) return;
+  if (item.archived) {
+    openDrawer(item.id);
+    toast("Ce dossier est archivé : engagement non disponible");
+    return;
+  }
 
   item.promise = fieldValue(form, "promise").trim();
   item.nextDate = fieldValue(form, "nextDate").trim();
@@ -780,7 +846,7 @@ function savePromiseFromForm(form) {
 function applyScenario(index) {
   const [day, title] = steps[index] || steps[0];
   const target = cases
-    .filter((item) => remainingAmount(item) > 0 && item.status !== "Clôturé")
+    .filter((item) => !item.archived && remainingAmount(item) > 0 && item.status !== "Clôturé")
     .sort((a, b) => b.delay - a.delay)[0];
   if (!target) {
     toast("Aucun dossier actif à traiter");
@@ -797,36 +863,182 @@ function applyScenario(index) {
 }
 
 function exportCases() {
-  const headers = ["Dossier", "Débiteur", "Contact", "Téléphone", "Montant initial", "Payé", "Reste dû", "Retard", "Risque", "Agent", "Statut", "Promesse", "Prochaine action", "Prochaine échéance"];
-  const rows = cases.map((item) => [
-    item.id,
-    item.client,
-    item.contact,
-    item.phone,
-    item.amount,
-    item.paid,
-    remainingAmount(item),
-    item.delay,
-    riskLabel(item.risk),
-    item.agent,
-    item.status,
-    item.promise,
-    item.nextAction,
-    item.nextDate
-  ]);
-  const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(";"))
-    .join("\n");
-  const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
+  const rows = getFilteredCases();
+  const totalAmount = rows.reduce((sum, item) => sum + item.amount, 0);
+  const totalPaid = rows.reduce((sum, item) => sum + item.paid, 0);
+  const totalDue = rows.reduce((sum, item) => sum + remainingAmount(item), 0);
+  const generatedAt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeStyle: "short" }).format(new Date());
+  const tableRows = rows.map((item) => `
+    <tr>
+      <td>${escapeHtml(item.id)}</td>
+      <td>${escapeHtml(item.client)}</td>
+      <td>${escapeHtml(item.contact)}</td>
+      <td>${escapeHtml(item.phone)}</td>
+      <td>${item.amount}</td>
+      <td>${item.paid}</td>
+      <td>${remainingAmount(item)}</td>
+      <td>${item.delay}</td>
+      <td>${escapeHtml(riskLabel(item.risk))}</td>
+      <td>${escapeHtml(item.agent)}</td>
+      <td>${escapeHtml(item.archived ? "Archivé" : item.status)}</td>
+      <td>${escapeHtml(item.promise || "")}</td>
+      <td>${escapeHtml(item.nextAction)}</td>
+      <td>${escapeHtml(item.nextDate)}</td>
+    </tr>
+  `).join("");
+  const html = `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; color: #1f2428; }
+          h1 { margin-bottom: 4px; }
+          .meta { color: #657079; margin-bottom: 18px; }
+          .summary { margin-bottom: 18px; border-collapse: collapse; }
+          .summary td { padding: 8px 14px; border: 1px solid #dfe4e7; font-weight: 700; }
+          table { width: 100%; border-collapse: collapse; }
+          th { background: #007a72; color: #ffffff; }
+          th, td { border: 1px solid #dfe4e7; padding: 8px; text-align: left; }
+          td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8) { text-align: right; }
+        </style>
+      </head>
+      <body>
+        <h1>Export portefeuille Recouvria</h1>
+        <p class="meta">Généré le ${escapeHtml(generatedAt)} - ${rows.length} dossier(s)</p>
+        <table class="summary">
+          <tr>
+            <td>Montant initial : ${formatMoney(totalAmount)}</td>
+            <td>Payé : ${formatMoney(totalPaid)}</td>
+            <td>Reste dû : ${formatMoney(totalDue)}</td>
+          </tr>
+        </table>
+        <table>
+          <thead>
+            <tr>
+              <th>Dossier</th>
+              <th>Débiteur</th>
+              <th>Contact</th>
+              <th>Téléphone</th>
+              <th>Montant initial</th>
+              <th>Payé</th>
+              <th>Reste dû</th>
+              <th>Retard</th>
+              <th>Risque</th>
+              <th>Agent</th>
+              <th>Statut</th>
+              <th>Promesse</th>
+              <th>Prochaine action</th>
+              <th>Prochaine échéance</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows || `<tr><td colspan="14">Aucun dossier exporté.</td></tr>`}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+  const blob = new Blob([`\ufeff${html}`], { type: "application/vnd.ms-excel;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `recouvria-portefeuille-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `recouvria-portefeuille-${new Date().toISOString().slice(0, 10)}.xls`;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  toast("Export CSV généré");
+  toast("Export Excel généré");
+}
+
+function printCasePdf(id) {
+  const item = getCase(id);
+  if (!item) return;
+  const due = remainingAmount(item);
+  const history = (item.history || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  const printWindow = window.open("", "_blank", "width=900,height=720");
+  if (!printWindow) {
+    toast("Autorise les fenêtres contextuelles pour imprimer");
+    return;
+  }
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(item.id)} - Recouvria</title>
+        <style>
+          body { margin: 32px; font-family: "Segoe UI", Arial, sans-serif; color: #1f2428; }
+          header { border-bottom: 3px solid #007a72; padding-bottom: 18px; margin-bottom: 22px; }
+          h1 { margin: 0; font-size: 28px; }
+          h2 { margin: 22px 0 10px; font-size: 18px; color: #007a72; }
+          .muted { color: #657079; }
+          .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+          .box { border: 1px solid #dfe4e7; border-radius: 8px; padding: 12px; }
+          .box span { display: block; color: #657079; font-size: 12px; margin-bottom: 5px; }
+          .box strong { font-size: 18px; }
+          ul { padding-left: 18px; }
+          @media print { body { margin: 18mm; } button { display: none; } }
+        </style>
+      </head>
+      <body>
+        <header>
+          <p class="muted">Fiche dossier Recouvria</p>
+          <h1>${escapeHtml(item.client)}</h1>
+          <p>${escapeHtml(item.id)} - ${escapeHtml(item.contact)} - ${escapeHtml(item.phone)}</p>
+        </header>
+        <section class="grid">
+          <div class="box"><span>Montant initial</span><strong>${formatMoney(item.amount)}</strong></div>
+          <div class="box"><span>Payé</span><strong>${formatMoney(item.paid)}</strong></div>
+          <div class="box"><span>Reste dû</span><strong>${formatMoney(due)}</strong></div>
+          <div class="box"><span>Retard</span><strong>${item.delay} jours</strong></div>
+          <div class="box"><span>Agent</span><strong>${escapeHtml(item.agent)}</strong></div>
+          <div class="box"><span>Statut</span><strong>${escapeHtml(item.archived ? "Archivé" : item.status)}</strong></div>
+        </section>
+        <h2>Prochaine action</h2>
+        <p><strong>${escapeHtml(item.nextAction)}</strong><br /><span class="muted">${escapeHtml(item.nextDate)}</span></p>
+        ${item.promise ? `<h2>Engagement</h2><p>${escapeHtml(item.promise)}</p>` : ""}
+        <h2>Historique</h2>
+        <ul>${history || "<li>Aucun historique</li>"}</ul>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  window.setTimeout(() => printWindow.print(), 250);
+  toast("Fiche prête pour impression PDF");
+}
+
+function archiveCase(id) {
+  const item = getCase(id);
+  if (!item) return;
+  if (!window.confirm(`Archiver le dossier ${item.id} ?`)) return;
+  item.archived = true;
+  addHistory(item, `Dossier archivé le ${todayLabel()}`);
+  saveCases();
+  refreshViews();
+  openDrawer(id);
+  toast("Dossier archivé");
+}
+
+function restoreCase(id) {
+  const item = getCase(id);
+  if (!item) return;
+  item.archived = false;
+  addHistory(item, `Dossier réactivé le ${todayLabel()}`);
+  saveCases();
+  refreshViews();
+  openDrawer(id);
+  toast("Dossier réactivé");
+}
+
+function deleteCase(id) {
+  const item = getCase(id);
+  if (!item) return;
+  if (!window.confirm(`Supprimer définitivement le dossier ${item.id} ?`)) return;
+  cases = cases.filter((entry) => entry.id !== id);
+  saveCases();
+  refreshViews();
+  closeDrawer();
+  toast("Dossier supprimé");
 }
 
 function resetDemo() {
@@ -834,9 +1046,11 @@ function resetDemo() {
   saveCases();
   activeFilter = "all";
   activeAgent = "all";
+  activeStatus = "active";
   searchTerm = "";
   document.querySelector("#globalSearch").value = "";
   document.querySelector("#agentFilter").value = "all";
+  document.querySelector("#statusFilter").value = "active";
   document.querySelectorAll(".segmented button").forEach((button) => {
     button.classList.toggle("active", button.dataset.filter === "all");
   });
@@ -885,6 +1099,7 @@ function openCaseForm(id = "") {
     paid: 0,
     delay: 0,
     risk: "medium",
+    archived: false,
     agent: agents[0].name,
     status: "Nouveau",
     nextAction: "Premier appel",
@@ -984,6 +1199,7 @@ function saveCaseFromForm(form) {
     risk: fieldValue(form, "risk"),
     agent: fieldValue(form, "agent"),
     status: fieldValue(form, "status"),
+    archived: cases.find((item) => item.id === id)?.archived || false,
     nextAction: fieldValue(form, "nextAction").trim(),
     nextDate: fieldValue(form, "nextDate").trim(),
     promise: fieldValue(form, "promise").trim(),
@@ -1059,6 +1275,11 @@ function bindEvents() {
     renderTable();
   });
 
+  document.querySelector("#statusFilter").addEventListener("change", (event) => {
+    activeStatus = event.target.value;
+    renderTable();
+  });
+
   document.body.addEventListener("click", (event) => {
     const openButton = closestAction(event.target, "[data-open]");
     const editButton = closestAction(event.target, "[data-edit]");
@@ -1072,6 +1293,10 @@ function bindEvents() {
     const saveFormButton = closestAction(event.target, "[data-save-form]");
     const submitButton = closestAction(event.target, "[data-submit-form]");
     const actionButton = closestAction(event.target, "[data-action]");
+    const printCaseButton = closestAction(event.target, "[data-print-case]");
+    const archiveCaseButton = closestAction(event.target, "[data-archive-case]");
+    const restoreCaseButton = closestAction(event.target, "[data-restore-case]");
+    const deleteCaseButton = closestAction(event.target, "[data-delete-case]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -1099,6 +1324,10 @@ function bindEvents() {
     if (paymentFullButton) registerFullPayment(paymentFullButton.dataset.paymentFull);
     if (promiseFormButton) openPromiseForm(promiseFormButton.dataset.promiseForm);
     if (scenarioButton) applyScenario(Number(scenarioButton.dataset.scenario));
+    if (printCaseButton) printCasePdf(printCaseButton.dataset.printCase);
+    if (archiveCaseButton) archiveCase(archiveCaseButton.dataset.archiveCase);
+    if (restoreCaseButton) restoreCase(restoreCaseButton.dataset.restoreCase);
+    if (deleteCaseButton) deleteCase(deleteCaseButton.dataset.deleteCase);
     if (actionButton) toast(`${actionButton.dataset.action} pour ${actionButton.dataset.id}`);
   });
 
