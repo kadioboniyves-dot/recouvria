@@ -1,3 +1,6 @@
+const storageKey = "recouvriaCasesV3";
+const orderStorageKey = "recouvriaOrdersV1";
+
 const seedCases = [
   {
     id: "RC-2026-0148",
@@ -103,7 +106,46 @@ const seedCases = [
   }
 ];
 
+const seedOrders = [
+  {
+    id: "CMD-2026-0001",
+    client: "Clinique Saint Gabriel",
+    product: "Consommables médicaux",
+    quantity: 12,
+    unitPrice: 325000,
+    total: 3900000,
+    date: "2026-05-18",
+    status: "Non payée",
+    caseId: ""
+  },
+  {
+    id: "CMD-2026-0002",
+    client: "Noura Distribution",
+    product: "Lots de marchandises",
+    quantity: 8,
+    unitPrice: 275000,
+    total: 2200000,
+    date: "2026-05-20",
+    status: "Partiellement payée",
+    caseId: ""
+  },
+  {
+    id: "CMD-2026-0003",
+    client: "Logis Afrique",
+    product: "Prestations logistiques",
+    quantity: 3,
+    unitPrice: 450000,
+    total: 1350000,
+    date: "2026-05-22",
+    status: "Payée",
+    caseId: ""
+  }
+];
+
+const orderStatuses = ["Non payée", "Partiellement payée", "Payée"];
+
 let cases = loadCases();
+let orders = loadOrders();
 
 const agents = [
   { name: "Mariam Traore", recovered: 14800000, target: 20000000, cases: 18 },
@@ -145,7 +187,6 @@ const reminderChannels = [
   ["notice", "Mise en demeure"]
 ];
 const paymentMethods = ["Espèces", "Mobile Money", "Virement", "Chèque", "Carte"];
-const storageKey = "recouvriaCasesV3";
 
 const currency = new Intl.NumberFormat("fr-FR", {
   style: "currency",
@@ -206,6 +247,47 @@ function saveCases() {
   localStorage.setItem(storageKey, JSON.stringify(cases));
 }
 
+function parseAmount(value) {
+  if (typeof value === "number") return value;
+  const normalized = String(value || "")
+    .replace(/\s/g, "")
+    .replace(/[^\d,.-]/g, "")
+    .replace(",", ".");
+  return Math.max(0, Number(normalized) || 0);
+}
+
+function normalizeOrders(items) {
+  return items.map((item, index) => {
+    const quantity = Math.max(0, Number(item.quantity) || 0);
+    const unitPrice = parseAmount(item.unitPrice);
+    const total = parseAmount(item.total) || quantity * unitPrice;
+    return {
+      id: item.id || `CMD-2026-${String(index + 1).padStart(4, "0")}`,
+      client: String(item.client || "").trim(),
+      product: String(item.product || "").trim(),
+      quantity,
+      unitPrice,
+      total,
+      date: item.date || todayInputValue(),
+      status: orderStatuses.includes(item.status) ? item.status : "Non payée",
+      caseId: item.caseId || ""
+    };
+  });
+}
+
+function loadOrders() {
+  try {
+    const stored = localStorage.getItem(orderStorageKey);
+    return normalizeOrders(stored ? JSON.parse(stored) : structuredClone(seedOrders));
+  } catch {
+    return normalizeOrders(structuredClone(seedOrders));
+  }
+}
+
+function saveOrders() {
+  localStorage.setItem(orderStorageKey, JSON.stringify(orders));
+}
+
 function refreshViews() {
   renderKpis();
   renderPriorityList();
@@ -213,6 +295,7 @@ function refreshViews() {
   renderRelances();
   renderPayments();
   renderReports();
+  renderOrders();
 }
 
 function nextCaseId() {
@@ -224,8 +307,25 @@ function nextCaseId() {
   return `RC-2026-${String(maxNumber + 1).padStart(4, "0")}`;
 }
 
+function nextOrderId() {
+  const maxNumber = orders.reduce((max, item) => {
+    const number = Number(String(item.id).split("-").pop());
+    return Number.isFinite(number) ? Math.max(max, number) : max;
+  }, 0);
+
+  return `CMD-2026-${String(maxNumber + 1).padStart(4, "0")}`;
+}
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function getCase(id) {
   return cases.find((item) => item.id === id);
+}
+
+function getOrder(id) {
+  return orders.find((item) => item.id === id);
 }
 
 function addHistory(item, message) {
@@ -314,6 +414,12 @@ function statusClass(item) {
   if (item.status.toLowerCase().includes("contentieux") || item.status.includes("Précontentieux")) return "legal";
   if (item.status.includes("Promesse")) return "promise";
   return "neutral";
+}
+
+function orderStatusClass(status) {
+  if (status === "Payée") return "low";
+  if (status === "Partiellement payée") return "promise";
+  return "high";
 }
 
 function getFilteredCases() {
@@ -539,11 +645,144 @@ function renderReports() {
   }).join("");
 }
 
+function clientOptions() {
+  return [...new Set([...cases.map((item) => item.client), ...orders.map((item) => item.client)].filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+function getOrdersForCase(item) {
+  return orders.filter((order) => order.caseId === item.id || order.client.toLowerCase() === item.client.toLowerCase());
+}
+
+function syncOrderCase(order) {
+  const existingCase = order.caseId ? getCase(order.caseId) : null;
+  if (order.status === "Payée") {
+    if (existingCase) {
+      existingCase.paid = existingCase.amount;
+      existingCase.status = "Clôturé";
+      existingCase.risk = "low";
+      existingCase.promise = "";
+      existingCase.nextAction = "Commande payée";
+      existingCase.nextDate = "Aucune";
+      addHistory(existingCase, `Commande ${order.id} marquée payée le ${todayLabel()}`);
+    }
+    return;
+  }
+
+  if (existingCase) {
+    existingCase.amount = order.total;
+    existingCase.status = order.status === "Partiellement payée" ? "Négociation" : existingCase.status;
+    existingCase.nextAction = "Suivi commande non payée";
+    existingCase.nextDate = "Dans 48h";
+    addHistory(existingCase, `Commande ${order.id} mise à jour le ${todayLabel()}`);
+    return;
+  }
+
+  const knownClient = cases.find((item) => item.client.toLowerCase() === order.client.toLowerCase());
+  const newCase = {
+    id: nextCaseId(),
+    client: order.client,
+    contact: knownClient?.contact || "Service administratif",
+    phone: knownClient?.phone || "+225 00 00 00 00 00",
+    email: knownClient?.email || defaultEmail(order),
+    amount: order.total,
+    paid: 0,
+    delay: 0,
+    risk: order.status === "Partiellement payée" ? "medium" : "high",
+    archived: false,
+    agent: knownClient?.agent || agents[0].name,
+    status: order.status === "Partiellement payée" ? "Négociation" : "Nouveau",
+    nextAction: "Relance commande non payée",
+    nextDate: "Aujourd'hui",
+    promise: "",
+    history: [`Dossier généré depuis la commande ${order.id}`, `${order.product} - ${order.quantity} x ${formatMoney(order.unitPrice)}`]
+  };
+  cases.unshift(newCase);
+  order.caseId = newCase.id;
+}
+
+function ensureOrderCases() {
+  let changed = false;
+  orders.forEach((order) => {
+    if (order.status !== "Payée" && !order.caseId) {
+      syncOrderCase(order);
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveOrders();
+    saveCases();
+  }
+}
+
+function renderOrders() {
+  const clientList = document.querySelector("#clientList");
+  const orderTable = document.querySelector("#orderTable");
+  const orderSummary = document.querySelector("#orderSummary");
+  if (!clientList || !orderTable || !orderSummary) return;
+
+  clientList.innerHTML = clientOptions().map((client) => `<option value="${escapeHtml(client)}"></option>`).join("");
+  const unpaidTotal = orders.filter((item) => item.status !== "Payée").reduce((sum, item) => sum + item.total, 0);
+  const paidTotal = orders.filter((item) => item.status === "Payée").reduce((sum, item) => sum + item.total, 0);
+  const linkedCases = orders.filter((item) => item.caseId).length;
+  const summary = [
+    ["Commandes", orders.length],
+    ["Impayés commandes", formatMoney(unpaidTotal)],
+    ["Payées", formatMoney(paidTotal)],
+    ["Dossiers générés", linkedCases]
+  ];
+
+  orderSummary.innerHTML = summary.map(([label, value]) => `
+    <article class="mini-kpi">
+      <span>${label}</span>
+      <strong>${value}</strong>
+    </article>
+  `).join("");
+
+  orderTable.innerHTML = orders.map((item) => `
+    <tr>
+      <td><strong>${escapeHtml(item.id)}</strong><small>${escapeHtml(item.date)}</small></td>
+      <td><strong>${escapeHtml(item.client)}</strong>${item.caseId ? `<small>Dossier ${escapeHtml(item.caseId)}</small>` : "<small>Aucun dossier lié</small>"}</td>
+      <td><strong>${escapeHtml(item.product)}</strong><small>${item.quantity} x ${formatMoney(item.unitPrice)}</small></td>
+      <td class="amount">${formatMoney(item.total)}</td>
+      <td><span class="badge ${orderStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
+      <td>
+        <div class="mini-actions">
+          <button type="button" title="Modifier" data-edit-order="${escapeHtml(item.id)}">M</button>
+          <button type="button" title="Générer dossier" ${item.status === "Payée" ? "disabled" : `data-generate-case="${escapeHtml(item.id)}"`}>G</button>
+          <button type="button" title="Ouvrir dossier" ${item.caseId ? `data-open="${escapeHtml(item.caseId)}"` : "disabled"}>O</button>
+          <button type="button" title="Supprimer" data-delete-order="${escapeHtml(item.id)}">X</button>
+        </div>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">Aucune commande enregistrée.</td></tr>`;
+}
+
 function openDrawer(id) {
   const item = cases.find((entry) => entry.id === id);
   if (!item) return;
   const due = remainingAmount(item);
   const settled = due <= 0 || item.status === "Clôturé";
+  const linkedOrders = getOrdersForCase(item);
+  const orderPanel = linkedOrders.length
+    ? `
+      <section class="linked-orders">
+        <p class="eyebrow">Produits commandés</p>
+        ${linkedOrders.map((order) => `
+          <article>
+            <div>
+              <strong>${escapeHtml(order.product)}</strong>
+              <span>${escapeHtml(order.id)} - ${order.quantity} x ${formatMoney(order.unitPrice)}</span>
+            </div>
+            <div>
+              <strong>${formatMoney(order.total)}</strong>
+              <span class="badge ${orderStatusClass(order.status)}">${escapeHtml(order.status)}</span>
+            </div>
+          </article>
+        `).join("")}
+      </section>
+    `
+    : "";
   const actionPanel = item.archived
     ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
@@ -605,6 +844,8 @@ function openDrawer(id) {
       <p>${item.nextDate}</p>
       ${item.promise ? `<p><strong>Engagement :</strong> ${item.promise}</p>` : ""}
     </section>
+
+    ${orderPanel}
 
     <div class="drawer-actions">
       ${actionPanel}
@@ -1108,15 +1349,189 @@ function deleteCase(id) {
   if (!item) return;
   if (!window.confirm(`Supprimer définitivement le dossier ${item.id} ?`)) return;
   cases = cases.filter((entry) => entry.id !== id);
+  orders = orders.map((order) => order.caseId === id ? { ...order, caseId: "" } : order);
   saveCases();
+  saveOrders();
   refreshViews();
   closeDrawer();
   toast("Dossier supprimé");
 }
 
+function resetOrderForm() {
+  const form = document.querySelector("#orderForm");
+  if (!form) return;
+  form.dataset.orderId = "";
+  form.reset();
+  form.querySelector("[name='date']").value = todayInputValue();
+  form.querySelector("[name='status']").value = "Non payée";
+  form.querySelector("[data-save-form='orderForm']").textContent = "Enregistrer commande";
+}
+
+function fillOrderForm(id) {
+  const order = getOrder(id);
+  const form = document.querySelector("#orderForm");
+  if (!order || !form) return;
+  form.dataset.orderId = order.id;
+  form.querySelector("[name='client']").value = order.client;
+  form.querySelector("[name='product']").value = order.product;
+  form.querySelector("[name='quantity']").value = order.quantity;
+  form.querySelector("[name='unitPrice']").value = order.unitPrice;
+  form.querySelector("[name='date']").value = order.date;
+  form.querySelector("[name='status']").value = order.status;
+  form.querySelector("[data-save-form='orderForm']").textContent = "Mettre à jour";
+  switchView("administration");
+  toast(`Commande ${order.id} prête à modifier`);
+}
+
+function saveOrderFromForm(form) {
+  const quantity = Math.max(0, Number(fieldValue(form, "quantity")) || 0);
+  const unitPrice = parseAmount(fieldValue(form, "unitPrice"));
+  const nextOrder = {
+    id: form.dataset.orderId || nextOrderId(),
+    client: fieldValue(form, "client").trim(),
+    product: fieldValue(form, "product").trim(),
+    quantity,
+    unitPrice,
+    total: quantity * unitPrice,
+    date: fieldValue(form, "date") || todayInputValue(),
+    status: fieldValue(form, "status"),
+    caseId: getOrder(form.dataset.orderId)?.caseId || ""
+  };
+
+  if (!nextOrder.client || !nextOrder.product || nextOrder.total <= 0) {
+    toast("Commande incomplète");
+    return;
+  }
+
+  syncOrderCase(nextOrder);
+  const index = orders.findIndex((item) => item.id === nextOrder.id);
+  if (index >= 0) orders[index] = nextOrder;
+  else orders.unshift(nextOrder);
+
+  saveOrders();
+  saveCases();
+  refreshViews();
+  resetOrderForm();
+  toast(nextOrder.caseId ? `Commande enregistrée et liée au dossier ${nextOrder.caseId}` : "Commande enregistrée");
+}
+
+function generateCaseFromOrder(id) {
+  const order = getOrder(id);
+  if (!order) return;
+  if (order.status === "Payée") {
+    toast("Commande payée : aucun dossier à générer");
+    return;
+  }
+  syncOrderCase(order);
+  saveOrders();
+  saveCases();
+  refreshViews();
+  if (order.caseId) openDrawer(order.caseId);
+  toast(`Dossier généré pour ${order.client}`);
+}
+
+function deleteOrder(id) {
+  const order = getOrder(id);
+  if (!order) return;
+  if (!window.confirm(`Supprimer la commande ${order.id} ?`)) return;
+  orders = orders.filter((item) => item.id !== id);
+  saveOrders();
+  refreshViews();
+  toast("Commande supprimée");
+}
+
+function parseDelimitedLine(line, delimiter) {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === delimiter && !quoted) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function normalizeHeader(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function importOrdersFromText(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim());
+  if (!lines.length) return 0;
+  const delimiter = lines[0].includes("\t") ? "\t" : lines[0].includes(";") ? ";" : ",";
+  const firstRow = parseDelimitedLine(lines[0], delimiter);
+  const expected = ["client", "produit", "quantite", "prixunitaire", "montanttotal", "datecommande", "statut"];
+  const headers = firstRow.map(normalizeHeader);
+  const hasHeader = expected.some((name) => headers.includes(name));
+  const body = hasHeader ? lines.slice(1) : lines;
+  const indexOf = (aliases, fallback) => {
+    const found = aliases.map(normalizeHeader).map((name) => headers.indexOf(name)).find((index) => index >= 0);
+    return found ?? fallback;
+  };
+
+  let imported = 0;
+  body.forEach((line) => {
+    const row = parseDelimitedLine(line, delimiter);
+    const quantity = Math.max(0, Number(row[indexOf(["quantité", "quantite", "qte"], 2)]) || 0);
+    const unitPrice = parseAmount(row[indexOf(["prix unitaire", "prixunitaire", "pu"], 3)]);
+    const total = parseAmount(row[indexOf(["montant total", "montanttotal", "total"], 4)]) || quantity * unitPrice;
+    const order = {
+      id: nextOrderId(),
+      client: row[indexOf(["client", "debiteur", "débiteur"], 0)] || "",
+      product: row[indexOf(["produit", "article", "designation", "désignation"], 1)] || "",
+      quantity,
+      unitPrice,
+      total,
+      date: row[indexOf(["date commande", "datecommande", "date"], 5)] || todayInputValue(),
+      status: orderStatuses.includes(row[indexOf(["statut", "status"], 6)]) ? row[indexOf(["statut", "status"], 6)] : "Non payée",
+      caseId: ""
+    };
+    if (!order.client || !order.product || order.total <= 0) return;
+    syncOrderCase(order);
+    orders.unshift(order);
+    imported += 1;
+  });
+
+  saveOrders();
+  saveCases();
+  refreshViews();
+  return imported;
+}
+
+function handleOrderImport(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    const count = importOrdersFromText(String(reader.result || ""));
+    toast(count ? `${count} commande(s) importée(s)` : "Aucune commande importée");
+  });
+  reader.readAsText(file, "utf-8");
+}
+
 function resetDemo() {
   cases = structuredClone(seedCases);
+  orders = structuredClone(seedOrders);
+  orders.forEach((order) => {
+    if (order.status !== "Payée") syncOrderCase(order);
+  });
   saveCases();
+  saveOrders();
   activeFilter = "all";
   activeAgent = "all";
   activeStatus = "active";
@@ -1141,6 +1556,7 @@ function handleFormSave(form) {
     if (form.id === "reminderForm") saveReminderFromForm(form);
     if (form.id === "paymentForm") savePaymentFromForm(form);
     if (form.id === "promiseForm") savePromiseFromForm(form);
+    if (form.id === "orderForm") saveOrderFromForm(form);
   } catch (error) {
     console.error(error);
     toast(`Erreur formulaire : ${error.message}`);
@@ -1376,6 +1792,10 @@ function bindEvents() {
     const archiveCaseButton = closestAction(event.target, "[data-archive-case]");
     const restoreCaseButton = closestAction(event.target, "[data-restore-case]");
     const deleteCaseButton = closestAction(event.target, "[data-delete-case]");
+    const editOrderButton = closestAction(event.target, "[data-edit-order]");
+    const generateCaseButton = closestAction(event.target, "[data-generate-case]");
+    const deleteOrderButton = closestAction(event.target, "[data-delete-order]");
+    const resetOrderButton = closestAction(event.target, "[data-reset-order-form]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -1407,6 +1827,10 @@ function bindEvents() {
     if (archiveCaseButton) archiveCase(archiveCaseButton.dataset.archiveCase);
     if (restoreCaseButton) restoreCase(restoreCaseButton.dataset.restoreCase);
     if (deleteCaseButton) deleteCase(deleteCaseButton.dataset.deleteCase);
+    if (editOrderButton) fillOrderForm(editOrderButton.dataset.editOrder);
+    if (generateCaseButton) generateCaseFromOrder(generateCaseButton.dataset.generateCase);
+    if (deleteOrderButton) deleteOrder(deleteOrderButton.dataset.deleteOrder);
+    if (resetOrderButton) resetOrderForm();
     if (actionButton) toast(`${actionButton.dataset.action} pour ${actionButton.dataset.id}`);
   });
 
@@ -1420,7 +1844,7 @@ function bindEvents() {
   }, true);
 
   document.body.addEventListener("submit", (event) => {
-    if (!["caseForm", "reminderForm", "paymentForm", "promiseForm"].includes(event.target.id)) return;
+    if (!["caseForm", "reminderForm", "paymentForm", "promiseForm", "orderForm"].includes(event.target.id)) return;
     event.preventDefault();
     handleFormSave(event.target);
   });
@@ -1433,10 +1857,15 @@ function bindEvents() {
   document.querySelector("#exportButton").addEventListener("click", exportCases);
   document.querySelector("#newCaseButton").addEventListener("click", () => openCaseForm());
   document.querySelector("#promiseButton").addEventListener("click", () => openPromiseForm());
+  document.querySelector("#orderImport").addEventListener("change", (event) => {
+    handleOrderImport(event.target.files?.[0]);
+    event.target.value = "";
+  });
   document.querySelector("#demoResetButton").addEventListener("click", resetDemo);
 }
 
 function init() {
+  ensureOrderCases();
   renderKpis();
   renderPriorityList();
   renderChart();
@@ -1446,6 +1875,8 @@ function init() {
   renderRelances();
   renderPayments();
   renderReports();
+  renderOrders();
+  resetOrderForm();
   bindEvents();
 }
 

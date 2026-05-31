@@ -545,10 +545,17 @@ select:focus,
 
 .dashboard-grid,
 .workflow-grid,
-.report-grid {
+.report-grid,
+.admin-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
   gap: 16px;
+}
+
+.admin-grid .section-heading {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: start;
 }
 
 .dashboard-grid .wide {
@@ -837,6 +844,77 @@ td small {
   grid-template-columns: repeat(3, minmax(220px, 1fr));
 }
 
+.order-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.mini-kpi {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 13px;
+  background: #f8fbfa;
+}
+
+.mini-kpi span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.mini-kpi strong {
+  display: block;
+  font-size: 18px;
+}
+
+.helper-text {
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.order-table-surface {
+  margin-top: 16px;
+}
+
+.order-table {
+  min-width: 980px;
+}
+
+.linked-orders {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.linked-orders article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdfc;
+}
+
+.linked-orders span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .payment-card strong {
   display: block;
   font-size: 24px;
@@ -1084,7 +1162,8 @@ td small {
   .demo-hero,
   .dashboard-grid,
   .workflow-grid,
-  .report-grid {
+  .report-grid,
+  .admin-grid {
     grid-template-columns: 1fr;
     display: grid;
   }
@@ -1095,7 +1174,8 @@ td small {
 
   .kpi-grid,
   .demo-grid,
-  .payment-grid {
+  .payment-grid,
+  .order-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1131,6 +1211,7 @@ td small {
   .preview-kpis,
   .preview-row,
   .payment-grid,
+  .order-summary,
   .detail-grid,
   .drawer-actions,
   .case-form,
@@ -1156,6 +1237,10 @@ td small {
 
   .danger-button {
     width: 100%;
+  }
+
+  .linked-orders article {
+    grid-template-columns: 1fr;
   }
 }
 

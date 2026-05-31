@@ -43,6 +43,10 @@
             <span class="icon" aria-hidden="true">E</span>
             Engagements
           </button>
+          <button class="nav-item" data-view="administration" type="button">
+            <span class="icon" aria-hidden="true">C</span>
+            Commandes
+          </button>
           <button class="nav-item" data-view="rapports" type="button">
             <span class="icon" aria-hidden="true">A</span>
             Rapports
@@ -136,6 +140,12 @@
               <h3>Piloter la performance</h3>
               <p>Analysez les encaissements, les retards, les promesses et l'activite par agent.</p>
               <button class="ghost-button" data-view-link="rapports" type="button">Rapports</button>
+            </article>
+            <article class="surface demo-card">
+              <span class="demo-card-icon">5</span>
+              <h3>Suivre les commandes</h3>
+              <p>Importez les produits commandes, rattachez-les aux clients et générez automatiquement les dossiers impayes.</p>
+              <button class="ghost-button" data-view-link="administration" type="button">Commandes</button>
             </article>
           </div>
         </section>
@@ -257,6 +267,87 @@
           </section>
         </section>
 
+        <section class="view" id="administration" aria-label="Administration des commandes">
+          <div class="admin-grid">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Administration</p>
+                  <h2>Commandes clients</h2>
+                </div>
+                <div class="inline-actions">
+                  <label class="secondary-button file-button" for="orderImport">Importer Excel</label>
+                  <input id="orderImport" type="file" accept=".csv,.tsv,.txt" hidden />
+                </div>
+              </div>
+              <p class="helper-text">Import CSV/TSV exporté depuis Excel : client, produit, quantité, prix unitaire, total, date, statut.</p>
+              <div class="order-summary" id="orderSummary"></div>
+            </section>
+
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Saisie interne</p>
+                  <h2>Ajouter une commande</h2>
+                </div>
+              </div>
+              <form class="case-form" id="orderForm" data-order-id="">
+                <label>
+                  <span>Client</span>
+                  <input name="client" list="clientList" required placeholder="Nom du client" />
+                  <datalist id="clientList"></datalist>
+                </label>
+                <label>
+                  <span>Produit</span>
+                  <input name="product" required placeholder="Produit ou prestation" />
+                </label>
+                <label>
+                  <span>Quantité</span>
+                  <input name="quantity" type="number" min="1" step="1" value="1" required />
+                </label>
+                <label>
+                  <span>Prix unitaire</span>
+                  <input name="unitPrice" type="number" min="0" step="1000" required />
+                </label>
+                <label>
+                  <span>Date commande</span>
+                  <input name="date" type="date" required />
+                </label>
+                <label>
+                  <span>Statut</span>
+                  <select name="status">
+                    <option>Non payée</option>
+                    <option>Partiellement payée</option>
+                    <option>Payée</option>
+                  </select>
+                </label>
+                <div class="form-actions">
+                  <button class="primary-button" type="button" data-save-form="orderForm">Enregistrer commande</button>
+                  <button class="secondary-button" type="button" data-reset-order-form>Vider</button>
+                </div>
+              </form>
+            </section>
+          </div>
+
+          <section class="surface table-surface order-table-surface">
+            <div class="table-wrap">
+              <table class="order-table">
+                <thead>
+                  <tr>
+                    <th>Commande</th>
+                    <th>Client</th>
+                    <th>Produit</th>
+                    <th>Total</th>
+                    <th>Statut</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="orderTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
         <section class="view" id="rapports" aria-label="Rapports">
           <div class="report-grid">
             <section class="surface">
@@ -291,6 +382,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=20"></script>
+    <script src="app.js?v=21"></script>
   </body>
 </html>
