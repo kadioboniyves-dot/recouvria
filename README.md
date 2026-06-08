@@ -2,10 +2,11 @@
 
 Recouvria est une application web locale de gestion du recouvrement client.
 
-Version publique :
+Versions publiques :
 
 ```text
 https://kadioboniyves-dot.github.io/recouvria/
+https://propose-moi-une-application-de-reco.vercel.app/
 ```
 
 ## Fonctionnalites
