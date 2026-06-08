@@ -923,7 +923,7 @@ td small {
 }
 
 .order-table {
-  min-width: 980px;
+  min-width: 1060px;
 }
 
 .order-sheet-panel {
@@ -931,7 +931,7 @@ td small {
 }
 
 .sheet-table {
-  min-width: 1040px;
+  min-width: 1140px;
 }
 
 .sheet-table input,

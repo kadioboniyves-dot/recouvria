@@ -112,6 +112,7 @@ const seedOrders = [
     orderRef: "BC-2026-0518",
     client: "Clinique Saint Gabriel",
     product: "Consommables médicaux",
+    packaging: "Boîte",
     quantity: 12,
     unitPrice: 325000,
     total: 3900000,
@@ -124,6 +125,7 @@ const seedOrders = [
     orderRef: "BC-2026-0518",
     client: "Clinique Saint Gabriel",
     product: "Kits de stérilisation",
+    packaging: "Carton",
     quantity: 5,
     unitPrice: 180000,
     total: 900000,
@@ -136,6 +138,7 @@ const seedOrders = [
     orderRef: "BC-2026-0520",
     client: "Noura Distribution",
     product: "Lots de marchandises",
+    packaging: "Carton",
     quantity: 8,
     unitPrice: 275000,
     total: 2200000,
@@ -148,6 +151,7 @@ const seedOrders = [
     orderRef: "BC-2026-0522",
     client: "Logis Afrique",
     product: "Prestations logistiques",
+    packaging: "Unité",
     quantity: 3,
     unitPrice: 450000,
     total: 1350000,
@@ -158,6 +162,7 @@ const seedOrders = [
 ];
 
 const orderStatuses = ["Non payée", "Partiellement payée", "Payée"];
+const orderPackagingOptions = ["Unité", "Boîte", "Carton"];
 
 let cases = loadCases();
 let orders = loadOrders();
@@ -272,6 +277,14 @@ function parseAmount(value) {
   return Math.max(0, Number(normalized) || 0);
 }
 
+function normalizePackaging(value) {
+  const normalized = normalizeHeader(value);
+  if (["boite", "boites", "box"].includes(normalized)) return "Boîte";
+  if (["carton", "cartons"].includes(normalized)) return "Carton";
+  if (["unite", "unites", "piece", "pieces", "unit"].includes(normalized)) return "Unité";
+  return "Unité";
+}
+
 function normalizeOrders(items) {
   return items.map((item, index) => {
     const quantity = Math.max(0, Number(item.quantity) || 0);
@@ -282,6 +295,7 @@ function normalizeOrders(items) {
       orderRef: item.orderRef || item.commandRef || item.reference || item.id || `BC-2026-${String(index + 1).padStart(4, "0")}`,
       client: String(item.client || "").trim(),
       product: String(item.product || "").trim(),
+      packaging: normalizePackaging(item.packaging || item.conditionnement || item.conditioning || item.unite || item.unit),
       quantity,
       unitPrice,
       total,
@@ -738,7 +752,7 @@ function syncOrderCase(order) {
     history: [
       `Dossier généré depuis l'import Excel du client`,
       `${unpaidOrders.length} produit(s) - total ${formatMoney(total)}`,
-      ...unpaidOrders.slice(0, 4).map((item) => `${item.product} - ${item.quantity} x ${formatMoney(item.unitPrice)}`)
+      ...unpaidOrders.slice(0, 4).map((item) => `${item.product} - ${item.quantity} ${item.packaging} x ${formatMoney(item.unitPrice)}`)
     ]
   };
   cases.unshift(newCase);
@@ -795,7 +809,8 @@ function renderOrders() {
     <tr>
       <td data-label="Commande"><strong>${escapeHtml(item.orderRef || item.id)}</strong><small>Ligne ${escapeHtml(item.id)} - ${escapeHtml(item.date)}</small></td>
       <td data-label="Client"><strong>${escapeHtml(item.client)}</strong>${item.caseId ? `<small>Dossier ${escapeHtml(item.caseId)}</small>` : "<small>Aucun dossier lié</small>"}</td>
-      <td data-label="Produit"><strong>${escapeHtml(item.product)}</strong><small>${item.quantity} x ${formatMoney(item.unitPrice)}</small></td>
+      <td data-label="Produit"><strong>${escapeHtml(item.product)}</strong></td>
+      <td data-label="Conditionnement"><strong>${item.quantity} ${escapeHtml(item.packaging)}</strong><small>${formatMoney(item.unitPrice)} / ${escapeHtml(item.packaging.toLowerCase())}</small></td>
       <td class="amount" data-label="Total">${formatMoney(item.total)}</td>
       <td data-label="Statut"><span class="badge ${orderStatusClass(item.status)}">${escapeHtml(item.status)}</span></td>
       <td data-label="Action">
@@ -806,7 +821,7 @@ function renderOrders() {
         </div>
       </td>
     </tr>
-  `).join("") || `<tr><td colspan="6">Aucune commande enregistrée.</td></tr>`;
+  `).join("") || `<tr><td colspan="7">Aucune commande enregistrée.</td></tr>`;
 }
 
 function renderOrderSheet() {
@@ -817,6 +832,11 @@ function renderOrderSheet() {
       <td data-label="Référence"><input data-sheet-field="orderRef" placeholder="BC-2026-${String(index + 1).padStart(3, "0")}" /></td>
       <td data-label="Client"><input data-sheet-field="client" list="clientList" placeholder="Client" /></td>
       <td data-label="Produit"><input data-sheet-field="product" placeholder="Produit commandé" /></td>
+      <td data-label="Conditionnement">
+        <select data-sheet-field="packaging">
+          ${orderPackagingOptions.map((item) => `<option>${item}</option>`).join("")}
+        </select>
+      </td>
       <td data-label="Quantité"><input data-sheet-field="quantity" type="number" min="1" step="1" value="1" /></td>
       <td data-label="Prix unitaire"><input data-sheet-field="unitPrice" type="number" min="0" step="1000" placeholder="0" /></td>
       <td data-label="Date"><input data-sheet-field="date" type="date" value="${todayInputValue()}" /></td>
@@ -852,6 +872,7 @@ function exportOrdersExcel(rows = orders, title = "Commandes Recouvria", filenam
       <td>${escapeHtml(item.id)}</td>
       <td>${escapeHtml(item.client)}</td>
       <td>${escapeHtml(item.product)}</td>
+      <td>${escapeHtml(item.packaging)}</td>
       <td>${item.quantity}</td>
       <td>${item.unitPrice}</td>
       <td>${item.total}</td>
@@ -873,7 +894,7 @@ function exportOrdersExcel(rows = orders, title = "Commandes Recouvria", filenam
           table { width: 100%; border-collapse: collapse; }
           th { background: #007a72; color: #ffffff; }
           th, td { border: 1px solid #dfe4e7; padding: 8px; text-align: left; }
-          td:nth-child(5), td:nth-child(6), td:nth-child(7) { text-align: right; }
+          td:nth-child(6), td:nth-child(7), td:nth-child(8) { text-align: right; }
         </style>
       </head>
       <body>
@@ -892,6 +913,7 @@ function exportOrdersExcel(rows = orders, title = "Commandes Recouvria", filenam
               <th>Ligne</th>
               <th>Client</th>
               <th>Produit</th>
+              <th>Conditionnement</th>
               <th>Quantité</th>
               <th>Prix unitaire</th>
               <th>Total</th>
@@ -900,7 +922,7 @@ function exportOrdersExcel(rows = orders, title = "Commandes Recouvria", filenam
               <th>Dossier</th>
             </tr>
           </thead>
-          <tbody>${tableRows || `<tr><td colspan="10">Aucune commande à exporter.</td></tr>`}</tbody>
+          <tbody>${tableRows || `<tr><td colspan="11">Aucune commande à exporter.</td></tr>`}</tbody>
         </table>
       </body>
     </html>
@@ -959,6 +981,7 @@ function saveOrderSheet() {
       orderRef: value("orderRef") || `BC-${todayInputValue().replaceAll("-", "")}-${saved + 1}`,
       client: value("client"),
       product: value("product"),
+      packaging: normalizePackaging(value("packaging")),
       quantity,
       unitPrice,
       total: quantity * unitPrice,
@@ -998,7 +1021,7 @@ function openDrawer(id) {
           <article>
             <div>
               <strong>${escapeHtml(order.product)}</strong>
-              <span>${escapeHtml(order.orderRef || order.id)} - ${order.quantity} x ${formatMoney(order.unitPrice)}</span>
+              <span>${escapeHtml(order.orderRef || order.id)} - ${order.quantity} ${escapeHtml(order.packaging)} x ${formatMoney(order.unitPrice)}</span>
             </div>
             <div>
               <strong>${formatMoney(order.total)}</strong>
@@ -1592,6 +1615,7 @@ function resetOrderForm() {
   form.dataset.orderId = "";
   form.reset();
   form.querySelector("[name='orderRef']").value = "";
+  if (form.querySelector("[name='packaging']")) form.querySelector("[name='packaging']").value = "Unité";
   form.querySelector("[name='date']").value = todayInputValue();
   form.querySelector("[name='status']").value = "Non payée";
   form.querySelector("[data-save-form='orderForm']").textContent = "Ajouter ligne produit";
@@ -1605,6 +1629,7 @@ function fillOrderForm(id) {
   form.querySelector("[name='orderRef']").value = order.orderRef || order.id;
   form.querySelector("[name='client']").value = order.client;
   form.querySelector("[name='product']").value = order.product;
+  if (form.querySelector("[name='packaging']")) form.querySelector("[name='packaging']").value = order.packaging;
   form.querySelector("[name='quantity']").value = order.quantity;
   form.querySelector("[name='unitPrice']").value = order.unitPrice;
   form.querySelector("[name='date']").value = order.date;
@@ -1622,6 +1647,7 @@ function saveOrderFromForm(form) {
     orderRef: fieldValue(form, "orderRef").trim() || form.dataset.orderId || nextOrderId(),
     client: fieldValue(form, "client").trim(),
     product: fieldValue(form, "product").trim(),
+    packaging: normalizePackaging(fieldValue(form, "packaging")),
     quantity,
     unitPrice,
     total: quantity * unitPrice,
@@ -1721,7 +1747,7 @@ function importOrdersFromText(text) {
   if (!lines.length) return 0;
   const delimiter = lines[0].includes("\t") ? "\t" : lines[0].includes(";") ? ";" : ",";
   const firstRow = parseDelimitedLine(lines[0], delimiter);
-  const expected = ["commande", "reference", "client", "produit", "quantite", "prixunitaire", "montanttotal", "datecommande", "statut"];
+  const expected = ["commande", "reference", "client", "produit", "conditionnement", "unite", "quantite", "prixunitaire", "montanttotal", "datecommande", "statut"];
   const headers = firstRow.map(normalizeHeader);
   const hasHeader = expected.some((name) => headers.includes(name));
   const body = hasHeader ? lines.slice(1) : lines;
@@ -1736,11 +1762,14 @@ function importOrdersFromText(text) {
     const refColumn = indexOf(["commande", "reference", "référence", "bon commande", "bondecommande"], 0);
     const clientColumn = indexOf(["client", "debiteur", "débiteur"], hasHeader ? 1 : 1);
     const productColumn = indexOf(["produit", "article", "designation", "désignation"], hasHeader ? 2 : 2);
-    const quantityColumn = indexOf(["quantité", "quantite", "qte"], hasHeader ? 3 : 3);
-    const unitPriceColumn = indexOf(["prix unitaire", "prixunitaire", "pu"], hasHeader ? 4 : 4);
-    const totalColumn = indexOf(["montant total", "montanttotal", "total"], hasHeader ? 5 : 5);
-    const dateColumn = indexOf(["date commande", "datecommande", "date"], hasHeader ? 6 : 6);
-    const statusColumn = indexOf(["statut", "status"], hasHeader ? 7 : 7);
+    const packagingColumn = indexOf(["conditionnement", "unité", "unite", "format", "emballage"], -1);
+    const fallbackHasPackaging = !hasHeader && ["boite", "boites", "carton", "cartons", "unite", "unites"].includes(normalizeHeader(row[3]));
+    const offset = fallbackHasPackaging ? 1 : 0;
+    const quantityColumn = indexOf(["quantité", "quantite", "qte"], hasHeader ? 3 : 3 + offset);
+    const unitPriceColumn = indexOf(["prix unitaire", "prixunitaire", "pu"], hasHeader ? 4 : 4 + offset);
+    const totalColumn = indexOf(["montant total", "montanttotal", "total"], hasHeader ? 5 : 5 + offset);
+    const dateColumn = indexOf(["date commande", "datecommande", "date"], hasHeader ? 6 : 6 + offset);
+    const statusColumn = indexOf(["statut", "status"], hasHeader ? 7 : 7 + offset);
     const quantity = Math.max(0, Number(row[quantityColumn]) || 0);
     const unitPrice = parseAmount(row[unitPriceColumn]);
     const total = parseAmount(row[totalColumn]) || quantity * unitPrice;
@@ -1749,6 +1778,7 @@ function importOrdersFromText(text) {
       orderRef: row[refColumn] || "",
       client: row[clientColumn] || "",
       product: row[productColumn] || "",
+      packaging: normalizePackaging(row[packagingColumn >= 0 ? packagingColumn : fallbackHasPackaging ? 3 : -1]),
       quantity,
       unitPrice,
       total,

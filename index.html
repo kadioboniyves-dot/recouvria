@@ -286,7 +286,7 @@
                   <datalist id="clientList"></datalist>
                 </div>
               </div>
-              <p class="helper-text">Import CSV/TSV : référence, client, produit, quantité, prix unitaire, total, date, statut. Toutes les lignes du même client sont totalisées dans le portefeuille.</p>
+              <p class="helper-text">Import CSV/TSV : référence, client, produit, conditionnement, quantité, prix unitaire, total, date, statut. Le conditionnement accepte unité, boîte ou carton.</p>
               <div class="order-summary" id="orderSummary"></div>
             </section>
           </div>
@@ -309,6 +309,7 @@
                     <th>Référence</th>
                     <th>Client</th>
                     <th>Produit</th>
+                    <th>Conditionnement</th>
                     <th>Quantité</th>
                     <th>Prix unitaire</th>
                     <th>Date</th>
@@ -328,6 +329,7 @@
                     <th>Commande / ligne</th>
                     <th>Client</th>
                     <th>Produit</th>
+                    <th>Conditionnement</th>
                     <th>Total</th>
                     <th>Statut</th>
                     <th>Action</th>
@@ -373,6 +375,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=28"></script>
+    <script src="app.js?v=29"></script>
   </body>
 </html>
