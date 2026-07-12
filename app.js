@@ -1,5 +1,13 @@
 const storageKey = "recouvriaCasesV4";
 const orderStorageKey = "recouvriaOrdersV3";
+const agentStorageKey = "recouvriaAgentsV1";
+const clientStorageKey = "recouvriaClientsV1";
+const letterStorageKey = "recouvriaLettersV1";
+
+let apiMode = false;
+let currentUser = null;
+let persistTimer = 0;
+let isHydrating = false;
 
 const seedCases = [
   {
@@ -164,14 +172,17 @@ const seedOrders = [
 const orderStatuses = ["Non payée", "Partiellement payée", "Payée"];
 const orderPackagingOptions = ["Unité", "Boîte", "Carton"];
 
+const seedAgents = [
+  { id: "AG-001", name: "Mariam Traore", email: "mariam.traore@recouvria.ci", phone: "+225 07 10 20 30 40", role: "Lead recouvrement", recovered: 14800000, target: 20000000, cases: 18, active: true },
+  { id: "AG-002", name: "Jean Koffi", email: "jean.koffi@recouvria.ci", phone: "+225 05 44 22 10 20", role: "Chargé précontentieux", recovered: 11900000, target: 18000000, cases: 21, active: true },
+  { id: "AG-003", name: "Prisca Toure", email: "prisca.toure@recouvria.ci", phone: "+225 01 88 73 40 12", role: "Chargée portefeuille", recovered: 9700000, target: 14000000, cases: 14, active: true }
+];
+
 let cases = loadCases();
 let orders = loadOrders();
-
-const agents = [
-  { name: "Mariam Traore", recovered: 14800000, target: 20000000, cases: 18 },
-  { name: "Jean Koffi", recovered: 11900000, target: 18000000, cases: 21 },
-  { name: "Prisca Toure", recovered: 9700000, target: 14000000, cases: 14 }
-];
+let agents = loadAgents();
+let clients = loadClients();
+let letters = loadLetters();
 
 const channels = [
   { label: "Appels sortants", count: 46, rate: 78 },
@@ -266,6 +277,8 @@ function loadCases() {
 
 function saveCases() {
   localStorage.setItem(storageKey, JSON.stringify(cases));
+  syncClientsFromRecords();
+  queuePersistState();
 }
 
 function parseAmount(value) {
@@ -317,6 +330,201 @@ function loadOrders() {
 
 function saveOrders() {
   localStorage.setItem(orderStorageKey, JSON.stringify(orders));
+  syncClientsFromRecords();
+  queuePersistState();
+}
+
+function normalizeAgents(items) {
+  return items.map((item, index) => ({
+    id: item.id || `AG-${String(index + 1).padStart(3, "0")}`,
+    name: String(item.name || "").trim(),
+    email: String(item.email || "").trim(),
+    phone: String(item.phone || "").trim(),
+    role: String(item.role || "Chargé recouvrement").trim(),
+    recovered: Math.max(0, Number(item.recovered) || 0),
+    target: Math.max(0, Number(item.target) || 0),
+    cases: Math.max(0, Number(item.cases) || 0),
+    active: item.active !== false
+  })).filter((item) => item.name);
+}
+
+function loadAgents() {
+  try {
+    const stored = localStorage.getItem(agentStorageKey);
+    return normalizeAgents(stored ? JSON.parse(stored) : structuredClone(seedAgents));
+  } catch {
+    return normalizeAgents(structuredClone(seedAgents));
+  }
+}
+
+function saveAgents() {
+  localStorage.setItem(agentStorageKey, JSON.stringify(agents));
+  renderAgentFilter();
+  queuePersistState();
+}
+
+function clientIdFromName(name) {
+  const slug = String(name || "client")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 36) || "client";
+  return `CL-${slug.toUpperCase()}`;
+}
+
+function buildClientsFromRecords(caseRows = cases, orderRows = orders) {
+  const map = new Map();
+  const addClient = (item) => {
+    const name = String(item.client || item.name || "").trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    const current = map.get(key) || {
+      id: item.id?.startsWith?.("CL-") ? item.id : clientIdFromName(name),
+      name,
+      contact: "",
+      phone: "",
+      email: "",
+      segment: "B2B",
+      notes: ""
+    };
+    current.contact = current.contact || item.contact || "Service administratif";
+    current.phone = current.phone || item.phone || "";
+    current.email = current.email || item.email || defaultEmail({ client: name });
+    current.segment = current.segment || (item.risk === "legal" ? "Précontentieux" : "B2B");
+    current.notes = current.notes || (item.agent ? `Client suivi par ${item.agent}.` : "");
+    map.set(key, current);
+  };
+
+  caseRows.forEach(addClient);
+  orderRows.forEach(addClient);
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+}
+
+function normalizeClients(items) {
+  const source = Array.isArray(items) && items.length ? items : buildClientsFromRecords();
+  return source.map((item) => ({
+    id: item.id || clientIdFromName(item.name),
+    name: String(item.name || "").trim(),
+    contact: String(item.contact || "Service administratif").trim(),
+    phone: String(item.phone || "").trim(),
+    email: String(item.email || "").trim(),
+    segment: String(item.segment || "B2B").trim(),
+    notes: String(item.notes || "").trim()
+  })).filter((item) => item.name);
+}
+
+function loadClients() {
+  try {
+    const stored = localStorage.getItem(clientStorageKey);
+    return normalizeClients(stored ? JSON.parse(stored) : buildClientsFromRecords(seedCases, seedOrders));
+  } catch {
+    return normalizeClients(buildClientsFromRecords(seedCases, seedOrders));
+  }
+}
+
+function saveClients() {
+  localStorage.setItem(clientStorageKey, JSON.stringify(clients));
+  queuePersistState();
+}
+
+function normalizeLetters(items) {
+  return (items || []).map((item) => ({
+    id: item.id || nextLetterId(),
+    caseId: item.caseId || "",
+    client: item.client || "",
+    subject: item.subject || "Lettre de relance",
+    type: item.type || "Relance",
+    content: item.content || "",
+    status: item.status || "Brouillon",
+    createdAt: item.createdAt || new Date().toISOString()
+  }));
+}
+
+function loadLetters() {
+  try {
+    const stored = localStorage.getItem(letterStorageKey);
+    return normalizeLetters(stored ? JSON.parse(stored) : []);
+  } catch {
+    return [];
+  }
+}
+
+function saveLetters() {
+  localStorage.setItem(letterStorageKey, JSON.stringify(letters));
+  queuePersistState();
+}
+
+function syncClientsFromRecords() {
+  if (isHydrating) return;
+  const known = new Map(clients.map((item) => [item.name.toLowerCase(), item]));
+  buildClientsFromRecords(cases, orders).forEach((item) => {
+    const existing = known.get(item.name.toLowerCase());
+    if (existing) {
+      existing.contact ||= item.contact;
+      existing.phone ||= item.phone;
+      existing.email ||= item.email;
+      existing.segment ||= item.segment;
+      existing.notes ||= item.notes;
+      return;
+    }
+    known.set(item.name.toLowerCase(), item);
+  });
+  clients = [...known.values()].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  localStorage.setItem(clientStorageKey, JSON.stringify(clients));
+}
+
+function statePayload() {
+  return { cases, orders, agents, clients, letters };
+}
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...options
+  });
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? await response.json() : {};
+  if (!response.ok) {
+    const error = new Error(payload.error || `Erreur API ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return payload;
+}
+
+function queuePersistState() {
+  if (!apiMode || isHydrating) return;
+  window.clearTimeout(persistTimer);
+  persistTimer = window.setTimeout(async () => {
+    try {
+      await apiRequest("/api/state", {
+        method: "PUT",
+        body: JSON.stringify(statePayload())
+      });
+      updateSessionBadge("Base synchronisée");
+    } catch (error) {
+      console.error(error);
+      updateSessionBadge("Synchro en attente");
+    }
+  }, 350);
+}
+
+function applyBootstrap(payload) {
+  isHydrating = true;
+  cases = normalizeCases(payload.cases || seedCases);
+  orders = normalizeOrders(payload.orders || seedOrders);
+  agents = normalizeAgents(payload.agents || seedAgents);
+  clients = normalizeClients(payload.clients || buildClientsFromRecords(cases, orders));
+  letters = normalizeLetters(payload.letters || []);
+  localStorage.setItem(storageKey, JSON.stringify(cases));
+  localStorage.setItem(orderStorageKey, JSON.stringify(orders));
+  localStorage.setItem(agentStorageKey, JSON.stringify(agents));
+  localStorage.setItem(clientStorageKey, JSON.stringify(clients));
+  localStorage.setItem(letterStorageKey, JSON.stringify(letters));
+  isHydrating = false;
 }
 
 function refreshViews() {
@@ -327,6 +535,9 @@ function refreshViews() {
   renderPayments();
   renderReports();
   renderOrders();
+  renderClients();
+  renderAgentsAdmin();
+  renderLetters();
 }
 
 function nextCaseId() {
@@ -345,6 +556,31 @@ function nextOrderId() {
   }, 0);
 
   return `CMD-2026-${String(maxNumber + 1).padStart(4, "0")}`;
+}
+
+function nextAgentId() {
+  const maxNumber = agents.reduce((max, item) => {
+    const number = Number(String(item.id || "").split("-").pop());
+    return Number.isFinite(number) ? Math.max(max, number) : max;
+  }, 0);
+  return `AG-${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+function nextClientId() {
+  const maxNumber = clients.reduce((max, item) => {
+    const number = Number(String(item.id || "").split("-").pop());
+    return Number.isFinite(number) ? Math.max(max, number) : max;
+  }, 0);
+  return `CL-${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+function nextLetterId() {
+  const year = new Date().getFullYear();
+  const maxNumber = letters.reduce((max, item) => {
+    const number = Number(String(item.id || "").split("-").pop());
+    return Number.isFinite(number) ? Math.max(max, number) : max;
+  }, 0);
+  return `LR-${year}-${String(maxNumber + 1).padStart(4, "0")}`;
 }
 
 function todayInputValue() {
@@ -679,8 +915,101 @@ function renderReports() {
   }).join("");
 }
 
+function renderClients() {
+  const grid = document.querySelector("#clientGrid");
+  if (!grid) return;
+  syncClientsFromRecords();
+  grid.innerHTML = clients.map((client) => {
+    const clientCases = cases.filter((item) => item.client.toLowerCase() === client.name.toLowerCase());
+    const due = clientCases.reduce((sum, item) => sum + remainingAmount(item), 0);
+    const active = clientCases.filter((item) => !item.archived && remainingAmount(item) > 0).length;
+    return `
+      <article class="client-card">
+        <div class="client-card-main">
+          <div>
+            <span class="badge neutral">${escapeHtml(client.segment || "Client")}</span>
+            <h3>${escapeHtml(client.name)}</h3>
+            <p>${escapeHtml(client.contact || "Service administratif")}<br><span class="muted-line">${escapeHtml(client.phone || "Téléphone non renseigné")}</span></p>
+          </div>
+          <strong>${formatMoney(due)}</strong>
+        </div>
+        <div class="client-card-foot">
+          <span>${active} dossier(s) actif(s)</span>
+          <span>${escapeHtml(client.email || "Email non renseigné")}</span>
+        </div>
+        <div class="inline-actions">
+          <button class="primary-button" type="button" data-client-open="${escapeHtml(client.id)}">Détails</button>
+          <button class="secondary-button" type="button" data-client-edit="${escapeHtml(client.id)}">Modifier</button>
+          <button class="secondary-button" type="button" data-client-letter="${escapeHtml(client.name)}">Lettre</button>
+        </div>
+      </article>
+    `;
+  }).join("") || `<article class="client-card"><h3>Aucun client</h3><p>Ajoute un client ou importe une commande pour alimenter le portefeuille.</p></article>`;
+}
+
+function renderAgentsAdmin() {
+  const list = document.querySelector("#agentAdminList");
+  if (!list) return;
+  list.innerHTML = agents.map((agent) => {
+    const assignedCases = cases.filter((item) => item.agent === agent.name && !item.archived);
+    const due = assignedCases.reduce((sum, item) => sum + remainingAmount(item), 0);
+    const recovered = assignedCases.reduce((sum, item) => sum + item.paid, 0);
+    const target = Math.max(agent.target, 1);
+    const rate = Math.min(100, Math.round((Math.max(agent.recovered, recovered) / target) * 100));
+    return `
+      <article class="agent-admin-row ${agent.active ? "" : "inactive-row"}">
+        <div>
+          <div class="meta-row">
+            <span class="badge ${agent.active ? "low" : "archived"}">${agent.active ? "Actif" : "Inactif"}</span>
+            <span class="badge neutral">${escapeHtml(agent.role || "Agent")}</span>
+          </div>
+          <h3>${escapeHtml(agent.name)}</h3>
+          <p>${escapeHtml(agent.email || "Email non renseigné")} - ${escapeHtml(agent.phone || "Téléphone non renseigné")}</p>
+          <div class="channel-meter"><span style="width:${rate}%"></span></div>
+        </div>
+        <div class="agent-admin-stats">
+          <strong>${formatMoney(due)}</strong>
+          <span>${assignedCases.length} dossier(s)</span>
+        </div>
+        <div class="inline-actions">
+          <button class="primary-button" type="button" data-agent-edit="${escapeHtml(agent.id)}">Modifier</button>
+          <button class="secondary-button" type="button" data-agent-toggle="${escapeHtml(agent.id)}">${agent.active ? "Désactiver" : "Réactiver"}</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderLetters() {
+  const caseSelect = document.querySelector("#letterCaseSelect");
+  const list = document.querySelector("#letterList");
+  if (!list) return;
+  if (caseSelect) {
+    const activeCases = cases.filter((item) => !item.archived && remainingAmount(item) > 0);
+    caseSelect.innerHTML = activeCases.map((item) => `
+      <option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} - ${escapeHtml(item.client)} (${formatMoney(remainingAmount(item))})</option>
+    `).join("");
+  }
+  list.innerHTML = letters.map((letter) => `
+    <article class="letter-row">
+      <div>
+        <div class="meta-row">
+          <span class="badge neutral">${escapeHtml(letter.type)}</span>
+          <span class="badge promise">${escapeHtml(letter.status)}</span>
+        </div>
+        <h3>${escapeHtml(letter.subject)}</h3>
+        <p>${escapeHtml(letter.client)} - ${new Date(letter.createdAt).toLocaleDateString("fr-FR")}</p>
+      </div>
+      <div class="inline-actions">
+        <button class="primary-button" type="button" data-letter-open="${escapeHtml(letter.id)}">Ouvrir</button>
+        <button class="secondary-button" type="button" data-letter-print="${escapeHtml(letter.id)}">Imprimer</button>
+      </div>
+    </article>
+  `).join("") || `<article class="letter-row"><h3>Aucune lettre générée</h3><p>Choisis un dossier actif pour préparer une relance formelle.</p></article>`;
+}
+
 function clientOptions() {
-  return [...new Set([...cases.map((item) => item.client), ...orders.map((item) => item.client)].filter(Boolean))]
+  return [...new Set([...clients.map((item) => item.name), ...cases.map((item) => item.client), ...orders.map((item) => item.client)].filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, "fr"));
 }
 
@@ -1036,6 +1365,7 @@ function openDrawer(id) {
     ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      <button class="secondary-button" type="button" data-generate-letter="${item.id}">Générer lettre</button>
       ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
       <button class="secondary-button" type="button" data-restore-case="${item.id}">Réactiver</button>
       <button class="danger-button" type="button" data-delete-case="${item.id}">Supprimer</button>
@@ -1045,6 +1375,7 @@ function openDrawer(id) {
       ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      <button class="secondary-button" type="button" data-generate-letter="${item.id}">Générer lettre</button>
       ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
       <button class="secondary-button" type="button" data-archive-case="${item.id}">Archiver</button>
       <button class="danger-button" type="button" data-delete-case="${item.id}">Supprimer</button>
@@ -1055,6 +1386,7 @@ function openDrawer(id) {
       : `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
+      <button class="secondary-button" type="button" data-generate-letter="${item.id}">Générer lettre</button>
       ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
       <button class="primary-button" type="button" data-payment-form="${item.id}">Encaisser paiement</button>
       <button class="secondary-button" type="button" data-payment-full="${item.id}">Encaisser tout</button>
@@ -1609,6 +1941,175 @@ function deleteCase(id) {
   toast("Dossier supprimé");
 }
 
+function letterContent(item, type = "Mise en demeure") {
+  const due = formatMoney(remainingAmount(item));
+  const today = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date());
+  const intro = type === "Relance amiable"
+    ? "Sauf erreur ou omission de notre part, votre compte présente un solde impayé."
+    : "Malgré nos précédentes relances, votre compte présente toujours un solde impayé.";
+  return [
+    `Abidjan, le ${today}`,
+    "",
+    `A l'attention de ${item.contact}`,
+    `${item.client}`,
+    "",
+    `Objet : ${type} - dossier ${item.id}`,
+    "",
+    `Madame, Monsieur,`,
+    "",
+    `${intro} Le montant restant dû au titre du dossier ${item.id} s'élève à ${due}.`,
+    "",
+    item.promise ? `Nous notons l'engagement suivant : ${item.promise}.` : "Aucun engagement de paiement ferme n'est actuellement enregistré dans nos dossiers.",
+    "",
+    "Nous vous invitons à régulariser cette situation ou à prendre contact avec notre service recouvrement sous 48 heures afin de convenir d'un échéancier.",
+    "",
+    "A défaut de retour dans ce délai, le dossier pourra être transmis au service précontentieux conformément à nos procédures internes.",
+    "",
+    "Nous vous prions d'agréer, Madame, Monsieur, l'expression de nos salutations distinguées.",
+    "",
+    `Service recouvrement - Recouvria`,
+    `Agent en charge : ${item.agent}`
+  ].join("\n");
+}
+
+function generateLetterForCase(id, type = "Mise en demeure") {
+  const item = getCase(id);
+  if (!item) return;
+  const letter = {
+    id: nextLetterId(),
+    caseId: item.id,
+    client: item.client,
+    subject: `${type} - ${item.id}`,
+    type,
+    content: letterContent(item, type),
+    status: "Brouillon",
+    createdAt: new Date().toISOString()
+  };
+  letters.unshift(letter);
+  addHistory(item, `${type} générée le ${todayLabel()}`);
+  saveLetters();
+  saveCases();
+  refreshViews();
+  switchView("lettres");
+  openLetter(letter.id);
+  toast("Lettre de relance générée");
+}
+
+function generateLetterForClient(name) {
+  const target = cases
+    .filter((item) => item.client.toLowerCase() === String(name).toLowerCase() && remainingAmount(item) > 0 && !item.archived)
+    .sort((a, b) => remainingAmount(b) - remainingAmount(a))[0];
+  if (!target) {
+    toast("Aucun dossier actif pour ce client");
+    return;
+  }
+  generateLetterForCase(target.id);
+}
+
+function getLetter(id) {
+  return letters.find((item) => item.id === id);
+}
+
+function openLetter(id) {
+  const letter = getLetter(id);
+  if (!letter) return;
+  document.querySelector("#drawerContent").innerHTML = `
+    <div class="detail-header">
+      <p class="eyebrow">${escapeHtml(letter.id)}</p>
+      <h2>${escapeHtml(letter.subject)}</h2>
+      <p>${escapeHtml(letter.client)} - ${new Date(letter.createdAt).toLocaleDateString("fr-FR")}</p>
+    </div>
+    <div class="letter-preview">${escapeHtml(letter.content)}</div>
+    <div class="drawer-actions">
+      <button class="primary-button" type="button" data-letter-print="${escapeHtml(letter.id)}">Imprimer</button>
+      <button class="secondary-button" type="button" data-letter-status="${escapeHtml(letter.id)}">Marquer envoyée</button>
+      ${letter.caseId ? `<button class="secondary-button" type="button" data-open="${escapeHtml(letter.caseId)}">Voir dossier</button>` : ""}
+    </div>
+  `;
+  document.querySelector("#drawer").classList.add("open");
+  document.querySelector("#drawer").setAttribute("aria-hidden", "false");
+}
+
+function printLetter(id) {
+  const letter = getLetter(id);
+  if (!letter) return;
+  const printWindow = window.open("", "_blank", "width=900,height=720");
+  if (!printWindow) {
+    toast("Autorise les fenêtres contextuelles pour imprimer");
+    return;
+  }
+  printWindow.document.write(`
+    <!doctype html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(letter.subject)}</title>
+        <style>
+          body { margin: 28mm; font-family: "Segoe UI", Arial, sans-serif; color: #172226; line-height: 1.55; }
+          header { border-bottom: 3px solid #00877d; padding-bottom: 14px; margin-bottom: 24px; }
+          h1 { margin: 0; color: #00877d; font-size: 24px; }
+          pre { white-space: pre-wrap; font-family: inherit; font-size: 14px; }
+          @media print { body { margin: 22mm; } }
+        </style>
+      </head>
+      <body>
+        <header>
+          <h1>Recouvria</h1>
+          <p>Courrier de recouvrement - ${escapeHtml(letter.id)}</p>
+        </header>
+        <pre>${escapeHtml(letter.content)}</pre>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  window.setTimeout(() => printWindow.print(), 250);
+}
+
+function markLetterSent(id) {
+  const letter = getLetter(id);
+  if (!letter) return;
+  letter.status = "Envoyée";
+  saveLetters();
+  renderLetters();
+  openLetter(id);
+  toast("Lettre marquée envoyée");
+}
+
+function openClientDetails(id) {
+  const client = clients.find((item) => item.id === id);
+  if (!client) return;
+  const clientCases = cases.filter((item) => item.client.toLowerCase() === client.name.toLowerCase());
+  const due = clientCases.reduce((sum, item) => sum + remainingAmount(item), 0);
+  document.querySelector("#drawerContent").innerHTML = `
+    <div class="detail-header">
+      <p class="eyebrow">${escapeHtml(client.segment || "Client")}</p>
+      <h2>${escapeHtml(client.name)}</h2>
+      <p>${escapeHtml(client.contact)} - ${escapeHtml(client.phone)}<br><span class="muted-line">${escapeHtml(client.email)}</span></p>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-stat"><span>Reste dû</span><strong>${formatMoney(due)}</strong></div>
+      <div class="detail-stat"><span>Dossiers</span><strong>${clientCases.length}</strong></div>
+      <div class="detail-stat"><span>Segment</span><strong>${escapeHtml(client.segment || "B2B")}</strong></div>
+      <div class="detail-stat"><span>Contact</span><strong>${escapeHtml(client.contact)}</strong></div>
+    </div>
+    <section>
+      <p class="eyebrow">Notes</p>
+      <p>${escapeHtml(client.notes || "Aucune note client.")}</p>
+    </section>
+    <div class="drawer-actions">
+      <button class="primary-button" type="button" data-client-edit="${escapeHtml(client.id)}">Modifier</button>
+      <button class="secondary-button" type="button" data-client-letter="${escapeHtml(client.name)}">Générer lettre</button>
+    </div>
+    <div class="activity-log">
+      <p class="eyebrow">Dossiers liés</p>
+      ${clientCases.map((item) => `<div><strong>${escapeHtml(item.id)} - ${escapeHtml(item.status)}</strong><span>${formatMoney(remainingAmount(item))}</span></div>`).join("") || "<div><strong>Aucun dossier</strong><span>Client sans créance active</span></div>"}
+    </div>
+  `;
+  document.querySelector("#drawer").classList.add("open");
+  document.querySelector("#drawer").setAttribute("aria-hidden", "false");
+}
+
 function resetOrderForm() {
   const form = document.querySelector("#orderForm");
   if (!form) return;
@@ -1812,11 +2313,17 @@ function handleOrderImport(file) {
 function resetDemo() {
   cases = structuredClone(seedCases);
   orders = structuredClone(seedOrders);
+  agents = normalizeAgents(structuredClone(seedAgents));
+  clients = normalizeClients(buildClientsFromRecords(cases, orders));
+  letters = [];
   orders.forEach((order) => {
     if (order.status !== "Payée") syncOrderCase(order);
   });
   saveCases();
   saveOrders();
+  saveAgents();
+  saveClients();
+  saveLetters();
   activeFilter = "all";
   activeAgent = "all";
   activeStatus = "active";
@@ -1842,6 +2349,8 @@ function handleFormSave(form) {
     if (form.id === "paymentForm") savePaymentFromForm(form);
     if (form.id === "promiseForm") savePromiseFromForm(form);
     if (form.id === "orderForm") saveOrderFromForm(form);
+    if (form.id === "clientForm") saveClientFromForm(form);
+    if (form.id === "agentForm") saveAgentFromForm(form);
   } catch (error) {
     console.error(error);
     toast(`Erreur formulaire : ${error.message}`);
@@ -1861,6 +2370,202 @@ function bindFormButton(formId) {
 function closestAction(target, selector) {
   const element = target?.nodeType === 1 ? target : target?.parentElement;
   return element?.closest(selector) || null;
+}
+
+function openClientForm(id = "") {
+  const client = clients.find((item) => item.id === id) || {
+    id: nextClientId(),
+    name: "",
+    contact: "",
+    phone: "",
+    email: "",
+    segment: "B2B",
+    notes: ""
+  };
+  const isNew = !id;
+  document.querySelector("#drawerContent").innerHTML = `
+    <div class="detail-header">
+      <p class="eyebrow">${isNew ? "Nouveau client" : escapeHtml(client.id)}</p>
+      <h2>${isNew ? "Ajouter un client" : "Modifier le client"}</h2>
+      <p>La fiche client alimente les dossiers, commandes et lettres.</p>
+    </div>
+    <div class="case-form" id="clientForm" data-client-id="${escapeHtml(client.id)}" data-original-name="${escapeHtml(client.name)}">
+      <label>
+        <span>Client</span>
+        <input name="name" value="${escapeHtml(client.name)}" required />
+      </label>
+      <label>
+        <span>Contact principal</span>
+        <input name="contact" value="${escapeHtml(client.contact)}" required />
+      </label>
+      <label>
+        <span>Téléphone</span>
+        <input name="phone" value="${escapeHtml(client.phone)}" required />
+      </label>
+      <label>
+        <span>Email</span>
+        <input name="email" type="email" value="${escapeHtml(client.email)}" required />
+      </label>
+      <label>
+        <span>Segment</span>
+        <select name="segment">
+          ${["B2B", "Grand compte", "PME", "Précontentieux", "Public"].map((segment) => `<option value="${segment}" ${segment === client.segment ? "selected" : ""}>${segment}</option>`).join("")}
+        </select>
+      </label>
+      <label class="full">
+        <span>Notes</span>
+        <textarea name="notes" rows="4">${escapeHtml(client.notes)}</textarea>
+      </label>
+      <div class="form-actions">
+        <button class="primary-button" type="button" data-save-form="clientForm">${isNew ? "Créer client" : "Sauvegarder"}</button>
+        <button class="secondary-button" type="button" data-close-form>Annuler</button>
+      </div>
+    </div>
+  `;
+  document.querySelector("#drawer").classList.add("open");
+  document.querySelector("#drawer").setAttribute("aria-hidden", "false");
+  bindFormButton("clientForm");
+}
+
+function saveClientFromForm(form) {
+  const id = form.dataset.clientId;
+  const originalName = form.dataset.originalName;
+  const nextClient = {
+    id,
+    name: fieldValue(form, "name").trim(),
+    contact: fieldValue(form, "contact").trim(),
+    phone: fieldValue(form, "phone").trim(),
+    email: fieldValue(form, "email").trim(),
+    segment: fieldValue(form, "segment"),
+    notes: fieldValue(form, "notes").trim()
+  };
+  const index = clients.findIndex((item) => item.id === id);
+  if (index >= 0) clients[index] = nextClient;
+  else clients.unshift(nextClient);
+
+  if (originalName && originalName !== nextClient.name) {
+    cases.forEach((item) => {
+      if (item.client === originalName) item.client = nextClient.name;
+    });
+    orders.forEach((item) => {
+      if (item.client === originalName) item.client = nextClient.name;
+    });
+  }
+
+  cases.forEach((item) => {
+    if (item.client === nextClient.name) {
+      item.contact = nextClient.contact || item.contact;
+      item.phone = nextClient.phone || item.phone;
+      item.email = nextClient.email || item.email;
+    }
+  });
+
+  saveClients();
+  saveCases();
+  saveOrders();
+  refreshViews();
+  openClientDetails(id);
+  toast(index >= 0 ? "Client mis à jour" : "Client ajouté");
+}
+
+function openAgentForm(id = "") {
+  const agent = agents.find((item) => item.id === id) || {
+    id: nextAgentId(),
+    name: "",
+    email: "",
+    phone: "",
+    role: "Chargé recouvrement",
+    recovered: 0,
+    target: 10000000,
+    cases: 0,
+    active: true
+  };
+  const isNew = !id;
+  document.querySelector("#drawerContent").innerHTML = `
+    <div class="detail-header">
+      <p class="eyebrow">${isNew ? "Nouvel agent" : escapeHtml(agent.id)}</p>
+      <h2>${isNew ? "Ajouter un agent" : "Modifier l'agent"}</h2>
+      <p>Les agents sont utilisés dans les dossiers, filtres et rapports.</p>
+    </div>
+    <div class="case-form" id="agentForm" data-agent-id="${escapeHtml(agent.id)}" data-original-name="${escapeHtml(agent.name)}">
+      <label>
+        <span>Nom</span>
+        <input name="name" value="${escapeHtml(agent.name)}" required />
+      </label>
+      <label>
+        <span>Rôle</span>
+        <input name="role" value="${escapeHtml(agent.role)}" required />
+      </label>
+      <label>
+        <span>Email</span>
+        <input name="email" type="email" value="${escapeHtml(agent.email)}" required />
+      </label>
+      <label>
+        <span>Téléphone</span>
+        <input name="phone" value="${escapeHtml(agent.phone)}" required />
+      </label>
+      <label>
+        <span>Objectif mensuel</span>
+        <input name="target" type="number" min="0" step="100000" value="${agent.target}" required />
+      </label>
+      <label>
+        <span>Déjà recouvré</span>
+        <input name="recovered" type="number" min="0" step="100000" value="${agent.recovered}" required />
+      </label>
+      <label>
+        <span>Statut</span>
+        <select name="active">
+          <option value="true" ${agent.active ? "selected" : ""}>Actif</option>
+          <option value="false" ${!agent.active ? "selected" : ""}>Inactif</option>
+        </select>
+      </label>
+      <div class="form-actions">
+        <button class="primary-button" type="button" data-save-form="agentForm">${isNew ? "Créer agent" : "Sauvegarder"}</button>
+        <button class="secondary-button" type="button" data-close-form>Annuler</button>
+      </div>
+    </div>
+  `;
+  document.querySelector("#drawer").classList.add("open");
+  document.querySelector("#drawer").setAttribute("aria-hidden", "false");
+  bindFormButton("agentForm");
+}
+
+function saveAgentFromForm(form) {
+  const id = form.dataset.agentId;
+  const originalName = form.dataset.originalName;
+  const nextAgent = {
+    id,
+    name: fieldValue(form, "name").trim(),
+    email: fieldValue(form, "email").trim(),
+    phone: fieldValue(form, "phone").trim(),
+    role: fieldValue(form, "role").trim(),
+    target: Math.max(0, Number(fieldValue(form, "target")) || 0),
+    recovered: Math.max(0, Number(fieldValue(form, "recovered")) || 0),
+    cases: cases.filter((item) => item.agent === fieldValue(form, "name").trim() && !item.archived).length,
+    active: fieldValue(form, "active") === "true"
+  };
+  const index = agents.findIndex((item) => item.id === id);
+  if (index >= 0) agents[index] = nextAgent;
+  else agents.unshift(nextAgent);
+  if (originalName && originalName !== nextAgent.name) {
+    cases.forEach((item) => {
+      if (item.agent === originalName) item.agent = nextAgent.name;
+    });
+  }
+  saveAgents();
+  saveCases();
+  refreshViews();
+  closeDrawer();
+  toast(index >= 0 ? "Agent mis à jour" : "Agent ajouté");
+}
+
+function toggleAgent(id) {
+  const agent = agents.find((item) => item.id === id);
+  if (!agent) return;
+  agent.active = !agent.active;
+  saveAgents();
+  refreshViews();
+  toast(agent.active ? "Agent réactivé" : "Agent désactivé");
 }
 
 function openCaseForm(id = "") {
@@ -2027,7 +2732,130 @@ function switchView(view) {
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
 }
 
+function updateSessionBadge(message = "") {
+  const userName = document.querySelector("#sessionUser");
+  const sync = document.querySelector("#syncStatus");
+  if (userName) userName.textContent = currentUser?.name || (apiMode ? "Utilisateur" : "Mode local");
+  if (sync) sync.textContent = message || (apiMode ? "Base SQLite" : "Demo locale");
+}
+
+function showAuth(message = "") {
+  const gate = document.querySelector("#authGate");
+  const shell = document.querySelector("#appShell");
+  const error = document.querySelector("#loginError");
+  if (gate) gate.hidden = false;
+  if (shell) shell.hidden = true;
+  if (error) error.textContent = message;
+  document.body.classList.add("auth-layout");
+}
+
+function showApp() {
+  const gate = document.querySelector("#authGate");
+  const shell = document.querySelector("#appShell");
+  if (gate) gate.hidden = true;
+  if (shell) shell.hidden = false;
+  document.body.classList.remove("auth-layout");
+  updateSessionBadge();
+}
+
+function startApplication() {
+  ensureOrderCases();
+  renderKpis();
+  renderPriorityList();
+  renderChart();
+  renderChannels();
+  renderAgentFilter();
+  renderTable();
+  renderRelances();
+  renderPayments();
+  renderReports();
+  renderOrders();
+  renderOrderSheet();
+  renderClients();
+  renderAgentsAdmin();
+  renderLetters();
+  resetOrderForm();
+}
+
+async function hydrateFromServer() {
+  const payload = await apiRequest("/api/bootstrap");
+  currentUser = payload.user;
+  applyBootstrap(payload);
+}
+
+async function initializeAuth() {
+  try {
+    const session = await apiRequest("/api/session");
+    apiMode = true;
+    if (!session.authenticated) {
+      showAuth("Connecte-toi pour accéder à la base Recouvria.");
+      return;
+    }
+    currentUser = session.user;
+    await hydrateFromServer();
+    showApp();
+    startApplication();
+  } catch (error) {
+    apiMode = false;
+    currentUser = { name: "Mode demo local", email: "" };
+    showApp();
+    startApplication();
+    toast("API indisponible : mode demo local activé");
+  }
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  const error = document.querySelector("#loginError");
+  if (error) error.textContent = "";
+  if (button) button.disabled = true;
+  try {
+    const payload = await apiRequest("/api/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: fieldValue(form, "email").trim(),
+        password: fieldValue(form, "password")
+      })
+    });
+    apiMode = true;
+    currentUser = payload.user;
+    await hydrateFromServer();
+    showApp();
+    startApplication();
+    toast("Connexion réussie");
+  } catch (errorMessage) {
+    if (error) error.textContent = errorMessage.message || "Connexion impossible";
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function logout() {
+  if (apiMode) {
+    try {
+      await apiRequest("/api/logout", { method: "POST", body: "{}" });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  currentUser = null;
+  if (apiMode) showAuth("Session fermée.");
+  else updateSessionBadge("Demo locale");
+}
+
 function bindEvents() {
+  document.querySelector("#loginForm")?.addEventListener("submit", handleLogin);
+  document.querySelector("#logoutButton")?.addEventListener("click", logout);
+  document.querySelector("#newClientButton")?.addEventListener("click", () => openClientForm());
+  document.querySelector("#newAgentButton")?.addEventListener("click", () => openAgentForm());
+  document.querySelector("#generateLetterButton")?.addEventListener("click", () => {
+    const id = document.querySelector("#letterCaseSelect")?.value;
+    if (id) generateLetterForCase(id, document.querySelector("#letterTypeSelect")?.value || "Mise en demeure");
+    else toast("Aucun dossier actif disponible");
+  });
+
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => switchView(button.dataset.view));
   });
@@ -2084,6 +2912,15 @@ function bindEvents() {
     const addSheetRowButton = closestAction(event.target, "[data-add-sheet-row]");
     const saveSheetButton = closestAction(event.target, "[data-save-sheet]");
     const exportCaseOrdersButton = closestAction(event.target, "[data-export-case-orders]");
+    const generateLetterButton = closestAction(event.target, "[data-generate-letter]");
+    const letterOpenButton = closestAction(event.target, "[data-letter-open]");
+    const letterPrintButton = closestAction(event.target, "[data-letter-print]");
+    const letterStatusButton = closestAction(event.target, "[data-letter-status]");
+    const clientOpenButton = closestAction(event.target, "[data-client-open]");
+    const clientEditButton = closestAction(event.target, "[data-client-edit]");
+    const clientLetterButton = closestAction(event.target, "[data-client-letter]");
+    const agentEditButton = closestAction(event.target, "[data-agent-edit]");
+    const agentToggleButton = closestAction(event.target, "[data-agent-toggle]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -2122,6 +2959,15 @@ function bindEvents() {
     if (addSheetRowButton) addOrderSheetRow();
     if (saveSheetButton) saveOrderSheet();
     if (exportCaseOrdersButton) exportCaseOrdersExcel(exportCaseOrdersButton.dataset.exportCaseOrders);
+    if (generateLetterButton) generateLetterForCase(generateLetterButton.dataset.generateLetter);
+    if (letterOpenButton) openLetter(letterOpenButton.dataset.letterOpen);
+    if (letterPrintButton) printLetter(letterPrintButton.dataset.letterPrint);
+    if (letterStatusButton) markLetterSent(letterStatusButton.dataset.letterStatus);
+    if (clientOpenButton) openClientDetails(clientOpenButton.dataset.clientOpen);
+    if (clientEditButton) openClientForm(clientEditButton.dataset.clientEdit);
+    if (clientLetterButton) generateLetterForClient(clientLetterButton.dataset.clientLetter);
+    if (agentEditButton) openAgentForm(agentEditButton.dataset.agentEdit);
+    if (agentToggleButton) toggleAgent(agentToggleButton.dataset.agentToggle);
     if (actionButton) toast(`${actionButton.dataset.action} pour ${actionButton.dataset.id}`);
   });
 
@@ -2135,7 +2981,7 @@ function bindEvents() {
   }, true);
 
   document.body.addEventListener("submit", (event) => {
-    if (!["caseForm", "reminderForm", "paymentForm", "promiseForm", "orderForm"].includes(event.target.id)) return;
+    if (!["caseForm", "reminderForm", "paymentForm", "promiseForm", "orderForm", "clientForm", "agentForm"].includes(event.target.id)) return;
     event.preventDefault();
     handleFormSave(event.target);
   });
@@ -2157,21 +3003,9 @@ function bindEvents() {
   document.querySelector("#demoResetButton").addEventListener("click", resetDemo);
 }
 
-function init() {
-  ensureOrderCases();
-  renderKpis();
-  renderPriorityList();
-  renderChart();
-  renderChannels();
-  renderAgentFilter();
-  renderTable();
-  renderRelances();
-  renderPayments();
-  renderReports();
-  renderOrders();
-  renderOrderSheet();
-  resetOrderForm();
+async function init() {
   bindEvents();
+  await initializeAuth();
 }
 
 init();

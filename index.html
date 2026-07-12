@@ -7,7 +7,33 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app-shell">
+    <section class="auth-gate" id="authGate" hidden>
+      <form class="login-card" id="loginForm">
+        <span class="brand-mark auth-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" role="img">
+            <path d="M8 10.5C8 7.5 10.5 5 13.5 5h13C29.5 5 32 7.5 32 10.5v19C32 32.5 29.5 35 26.5 35h-13C10.5 35 8 32.5 8 29.5v-19Z" />
+            <path d="M14 14h12M14 20h12M14 26h7" />
+          </svg>
+        </span>
+        <div>
+          <p class="eyebrow">Accès sécurisé</p>
+          <h1>Recouvria</h1>
+          <p>Connecte-toi pour ouvrir la base de recouvrement, les clients, les agents et les lettres.</p>
+        </div>
+        <label>
+          <span>Email</span>
+          <input name="email" type="email" value="admin@recouvria.local" autocomplete="username" required />
+        </label>
+        <label>
+          <span>Mot de passe</span>
+          <input name="password" type="password" value="recouvria2026" autocomplete="current-password" required />
+        </label>
+        <p class="login-error" id="loginError"></p>
+        <button class="primary-button" type="submit">Se connecter</button>
+      </form>
+    </section>
+
+    <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar" aria-label="Navigation principale">
         <a class="brand" href="#" aria-label="Recouvria">
           <span class="brand-mark" aria-hidden="true">
@@ -35,13 +61,25 @@
             <span class="icon" aria-hidden="true">P</span>
             Portefeuille
           </button>
+          <button class="nav-item" data-view="clients" type="button">
+            <span class="icon" aria-hidden="true">C</span>
+            Clients
+          </button>
           <button class="nav-item" data-view="relances" type="button">
             <span class="icon" aria-hidden="true">R</span>
             Relances
           </button>
+          <button class="nav-item" data-view="lettres" type="button">
+            <span class="icon" aria-hidden="true">L</span>
+            Lettres
+          </button>
           <button class="nav-item" data-view="paiements" type="button">
             <span class="icon" aria-hidden="true">E</span>
             Engagements
+          </button>
+          <button class="nav-item" data-view="agents" type="button">
+            <span class="icon" aria-hidden="true">G</span>
+            Agents
           </button>
           <button class="nav-item" data-view="administration" type="button">
             <span class="icon" aria-hidden="true">C</span>
@@ -72,8 +110,13 @@
               <span class="sr-only">Rechercher</span>
               <input id="globalSearch" type="search" placeholder="Rechercher client, dossier, téléphone..." />
             </label>
+            <div class="session-chip">
+              <strong id="sessionUser">Mode local</strong>
+              <span id="syncStatus">Demo locale</span>
+            </div>
             <button class="secondary-button" id="exportButton" type="button">Exporter</button>
             <button class="primary-button" id="newCaseButton" type="button">Nouveau dossier</button>
+            <button class="secondary-button icon-logout" id="logoutButton" type="button" title="Déconnexion">Quitter</button>
           </div>
         </header>
 
@@ -231,6 +274,19 @@
           </section>
         </section>
 
+        <section class="view" id="clients" aria-label="Gestion des clients">
+          <section class="surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Référentiel</p>
+                <h2>Clients et débiteurs</h2>
+              </div>
+              <button class="primary-button" id="newClientButton" type="button">Nouveau client</button>
+            </div>
+            <div class="client-grid" id="clientGrid"></div>
+          </section>
+        </section>
+
         <section class="view" id="relances" aria-label="Relances">
           <div class="workflow-grid">
             <section class="surface">
@@ -254,6 +310,43 @@
           </div>
         </section>
 
+        <section class="view" id="lettres" aria-label="Lettres de relance">
+          <div class="letter-layout">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Courriers</p>
+                  <h2>Génération de lettres</h2>
+                </div>
+              </div>
+              <div class="letter-generator">
+                <label>
+                  <span>Dossier</span>
+                  <select id="letterCaseSelect" aria-label="Choisir un dossier"></select>
+                </label>
+                <label>
+                  <span>Type</span>
+                  <select id="letterTypeSelect" aria-label="Choisir un type de lettre">
+                    <option value="Mise en demeure">Mise en demeure</option>
+                    <option value="Relance amiable">Relance amiable</option>
+                    <option value="Dernier avis avant contentieux">Dernier avis avant contentieux</option>
+                  </select>
+                </label>
+                <button class="primary-button" id="generateLetterButton" type="button">Générer lettre</button>
+              </div>
+            </section>
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Historique</p>
+                  <h2>Lettres préparées</h2>
+                </div>
+              </div>
+              <div class="letter-list" id="letterList"></div>
+            </section>
+          </div>
+        </section>
+
         <section class="view" id="paiements" aria-label="Engagements de paiement">
           <section class="surface">
             <div class="section-heading">
@@ -264,6 +357,19 @@
               <button class="primary-button" id="promiseButton" type="button">Ajouter engagement</button>
             </div>
             <div class="payment-grid" id="paymentGrid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="agents" aria-label="Gestion des agents">
+          <section class="surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Equipe</p>
+                <h2>Agents de recouvrement</h2>
+              </div>
+              <button class="primary-button" id="newAgentButton" type="button">Nouvel agent</button>
+            </div>
+            <div class="agent-admin-list" id="agentAdminList"></div>
           </section>
         </section>
 
@@ -375,6 +481,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=29"></script>
+    <script src="app.js?v=30"></script>
   </body>
 </html>

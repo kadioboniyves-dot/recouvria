@@ -3,5 +3,6 @@ recouvria-*.png
 Thumbs.db
 node_modules/
 *.log
+data/
 
 .vercel
