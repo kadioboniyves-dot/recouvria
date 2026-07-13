@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KFN Pharma - Administration de recouvrement</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2300877d'/%3E%3Cpath d='M22 20h20M22 32h20M22 44h12' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="auth-gate" id="authGate" hidden>
+      <form class="login-card" id="loginForm">
+        <img class="brand-logo auth-logo" src="assets/kfn-pharma-recouvrement.png" alt="KFN Pharma - Administration de recouvrement" />
+        <div>
+          <p class="eyebrow">Accès sécurisé</p>
+          <h1>Administration de recouvrement</h1>
+          <p>Connecte-toi pour ouvrir la base de recouvrement, les clients, les agents et les lettres.</p>
+        </div>
+        <label>
+          <span>Email</span>
+          <input name="email" type="email" value="admin@recouvria.local" autocomplete="username" required />
+        </label>
+        <label>
+          <span>Mot de passe</span>
+          <input name="password" type="password" value="recouvria2026" autocomplete="current-password" required />
+        </label>
+        <p class="login-error" id="loginError"></p>
+        <button class="primary-button" type="submit">Se connecter</button>
+      </form>
+    </section>
+
+    <div class="app-shell" id="appShell" hidden>
+      <aside class="sidebar" aria-label="Navigation principale">
+        <a class="brand logo-brand" href="#" aria-label="KFN Pharma - Administration de recouvrement">
+          <img class="brand-logo" src="assets/kfn-pharma-recouvrement.png" alt="KFN Pharma - Administration de recouvrement" />
+        </a>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-view="dashboard" type="button">
+            <span class="icon" aria-hidden="true">D</span>
+            Tableau de bord
+          </button>
+          <button class="nav-item" data-view="portfolio" type="button">
+            <span class="icon" aria-hidden="true">P</span>
+            Portefeuille
+          </button>
+          <button class="nav-item" data-view="clients" type="button">
+            <span class="icon" aria-hidden="true">C</span>
+            Clients
+          </button>
+          <button class="nav-item" data-view="relances" type="button">
+            <span class="icon" aria-hidden="true">R</span>
+            Relances
+          </button>
+          <button class="nav-item" data-view="lettres" type="button">
+            <span class="icon" aria-hidden="true">L</span>
+            Lettres
+          </button>
+          <button class="nav-item" data-view="paiements" type="button">
+            <span class="icon" aria-hidden="true">E</span>
+            Engagements
+          </button>
+          <button class="nav-item" data-view="agents" type="button">
+            <span class="icon" aria-hidden="true">G</span>
+            Agents
+          </button>
+          <button class="nav-item" data-view="administration" type="button">
+            <span class="icon" aria-hidden="true">C</span>
+            Commandes
+          </button>
+          <button class="nav-item" data-view="rapports" type="button">
+            <span class="icon" aria-hidden="true">A</span>
+            Rapports
+          </button>
+        </nav>
+
+        <div class="sidebar-panel">
+          <span class="panel-label">Objectif mensuel</span>
+          <strong>72%</strong>
+          <div class="progress-track" aria-hidden="true"><span style="width: 72%"></span></div>
+          <small>36,4 M FCFA encaissés</small>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Centre opérationnel</p>
+            <h1>Recouvrement clients</h1>
+          </div>
+          <div class="topbar-actions">
+            <label class="search-field">
+              <span class="sr-only">Rechercher</span>
+              <input id="globalSearch" type="search" placeholder="Rechercher client, dossier, téléphone..." />
+            </label>
+            <div class="session-chip">
+              <strong id="sessionUser">Mode local</strong>
+              <span id="syncStatus">Base locale</span>
+            </div>
+            <button class="secondary-button" id="exportButton" type="button">Exporter</button>
+            <button class="primary-button" id="newCaseButton" type="button">Nouveau dossier</button>
+            <button class="secondary-button icon-logout" id="logoutButton" type="button" title="Déconnexion">Quitter</button>
+          </div>
+        </header>
+
+        <section class="view active" id="dashboard" aria-label="Tableau de bord">
+          <div class="kpi-grid" id="kpiGrid"></div>
+
+          <div class="dashboard-grid">
+            <section class="surface wide">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Priorités</p>
+                  <h2>Dossiers à traiter aujourd'hui</h2>
+                </div>
+                <button class="ghost-button" data-view-link="portfolio" type="button">Voir tout</button>
+              </div>
+              <div class="priority-list" id="priorityList"></div>
+            </section>
+
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Performance</p>
+                  <h2>Encaissements</h2>
+                </div>
+              </div>
+              <div class="chart" id="collectionChart" aria-label="Graphique des encaissements"></div>
+            </section>
+
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Canaux</p>
+                  <h2>Relances actives</h2>
+                </div>
+              </div>
+              <div class="channel-list" id="channelList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="portfolio" aria-label="Portefeuille débiteurs">
+          <div class="toolbar">
+            <div class="segmented" aria-label="Filtrer les dossiers">
+              <button class="active" data-filter="all" type="button">Tous</button>
+              <button data-filter="urgent" type="button">Urgents</button>
+              <button data-filter="promise" type="button">Promesses</button>
+              <button data-filter="legal" type="button">Contentieux</button>
+            </div>
+            <select id="agentFilter" aria-label="Filtrer par agent">
+              <option value="all">Tous les agents</option>
+            </select>
+            <select id="statusFilter" aria-label="Filtrer par statut">
+              <option value="active">Dossiers actifs</option>
+              <option value="Nouveau">Nouveau</option>
+              <option value="Relancé">Relancé</option>
+              <option value="Négociation">Négociation</option>
+              <option value="Promesse">Promesse</option>
+              <option value="Précontentieux">Précontentieux</option>
+              <option value="Contentieux">Contentieux</option>
+              <option value="Clôturé">Clôturé</option>
+              <option value="archived">Archives</option>
+            </select>
+          </div>
+          <section class="surface table-surface">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Dossier</th>
+                    <th>Débiteur</th>
+                    <th>Montant</th>
+                    <th>Retard</th>
+                    <th>Risque</th>
+                    <th>Agent</th>
+                    <th>Statut</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="caseTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="clients" aria-label="Gestion des clients">
+          <section class="surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Référentiel</p>
+                <h2>Clients et débiteurs</h2>
+              </div>
+              <button class="primary-button" id="newClientButton" type="button">Nouveau client</button>
+            </div>
+            <div class="client-grid" id="clientGrid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="relances" aria-label="Relances">
+          <div class="workflow-grid">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Automatisation</p>
+                  <h2>Scénarios de relance</h2>
+                </div>
+              </div>
+              <div class="timeline" id="automationTimeline"></div>
+            </section>
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">File d'appels</p>
+                  <h2>Actions planifiées</h2>
+                </div>
+              </div>
+              <div class="task-list" id="taskList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="lettres" aria-label="Lettres de relance">
+          <div class="letter-layout">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Courriers</p>
+                  <h2>Génération de lettres</h2>
+                </div>
+              </div>
+              <div class="letter-generator">
+                <label>
+                  <span>Dossier</span>
+                  <select id="letterCaseSelect" aria-label="Choisir un dossier"></select>
+                </label>
+                <label>
+                  <span>Type</span>
+                  <select id="letterTypeSelect" aria-label="Choisir un type de lettre">
+                    <option value="Mise en demeure">Mise en demeure</option>
+                    <option value="Relance amiable">Relance amiable</option>
+                    <option value="Dernier avis avant contentieux">Dernier avis avant contentieux</option>
+                  </select>
+                </label>
+                <button class="primary-button" id="generateLetterButton" type="button">Générer lettre</button>
+              </div>
+            </section>
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Historique</p>
+                  <h2>Lettres préparées</h2>
+                </div>
+              </div>
+              <div class="letter-list" id="letterList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="paiements" aria-label="Engagements de paiement">
+          <section class="surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Promesses</p>
+                <h2>Plans de paiement suivis</h2>
+              </div>
+              <button class="primary-button" id="promiseButton" type="button">Ajouter engagement</button>
+            </div>
+            <div class="payment-grid" id="paymentGrid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="agents" aria-label="Gestion des agents">
+          <section class="surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Equipe</p>
+                <h2>Agents de recouvrement</h2>
+              </div>
+              <button class="primary-button" id="newAgentButton" type="button">Nouvel agent</button>
+            </div>
+            <div class="agent-admin-list" id="agentAdminList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="administration" aria-label="Administration des commandes">
+          <div class="admin-grid">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Administration</p>
+                  <h2>Commandes clients</h2>
+                </div>
+                <div class="inline-actions">
+                  <label class="secondary-button file-button" for="orderImport">Importer Excel</label>
+                  <input id="orderImport" type="file" accept=".csv,.tsv,.txt" hidden />
+                  <button class="secondary-button" id="orderSheetButton" type="button">Tableau Excel</button>
+                  <select id="orderExportClient" aria-label="Choisir le client à exporter">
+                    <option value="all">Tous les clients</option>
+                  </select>
+                  <button class="secondary-button" id="exportOrdersButton" type="button">Exporter commandes</button>
+                  <datalist id="clientList"></datalist>
+                </div>
+              </div>
+              <p class="helper-text">Import CSV/TSV : référence, client, produit, conditionnement, quantité, prix unitaire, total, date, statut. Le conditionnement accepte unité, boîte ou carton.</p>
+              <div class="order-summary" id="orderSummary"></div>
+            </section>
+          </div>
+
+          <section class="surface order-sheet-panel" id="orderSheetPanel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Tableau Excel interne</p>
+                <h2>Liste des commandes par client</h2>
+              </div>
+              <div class="inline-actions">
+                <button class="secondary-button" type="button" data-add-sheet-row>Ajouter ligne</button>
+                <button class="primary-button" type="button" data-save-sheet>Enregistrer dans portefeuille</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="sheet-table">
+                <thead>
+                  <tr>
+                    <th>Référence</th>
+                    <th>Client</th>
+                    <th>Produit</th>
+                    <th>Conditionnement</th>
+                    <th>Quantité</th>
+                    <th>Prix unitaire</th>
+                    <th>Date</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="orderSheetBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="surface table-surface order-table-surface">
+            <div class="table-wrap">
+              <table class="order-table">
+                <thead>
+                  <tr>
+                    <th>Commande / ligne</th>
+                    <th>Client</th>
+                    <th>Produit</th>
+                    <th>Conditionnement</th>
+                    <th>Total</th>
+                    <th>Statut</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="orderTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="rapports" aria-label="Rapports">
+          <div class="report-grid">
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Synthèse</p>
+                  <h2>Rapport mensuel</h2>
+                </div>
+              </div>
+              <dl class="report-list" id="reportList"></dl>
+            </section>
+            <section class="surface">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Equipe</p>
+                  <h2>Performance agents</h2>
+                </div>
+              </div>
+              <div class="agent-list" id="agentList"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Détail du dossier">
+      <div class="drawer-panel">
+        <button class="icon-button close-drawer" id="closeDrawer" type="button" aria-label="Fermer">x</button>
+        <div id="drawerContent"></div>
+      </div>
+    </aside>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="app.js?v=33"></script>
+  </body>
+</html>
