@@ -186,6 +186,8 @@ let orders = loadOrders();
 let agents = loadAgents();
 let clients = loadClients();
 let letters = loadLetters();
+let clientRequests = [];
+let clientRequestsConfigured = null;
 
 const channels = [
   { label: "Appels sortants", count: 46, rate: 78 },
@@ -541,6 +543,7 @@ function refreshViews() {
   renderClients();
   renderAgentsAdmin();
   renderLetters();
+  renderClientRequests();
 }
 
 function nextCaseId() {
@@ -784,6 +787,96 @@ function renderChannels() {
       <span class="badge neutral">${channel.count}</span>
     </article>
   `).join("");
+}
+
+function clientRequestLabel(type) {
+  return {
+    preuve_paiement: "Preuve de paiement",
+    echeancier: "Demande d'échéancier",
+    message: "Message client"
+  }[type] || type || "Demande";
+}
+
+function renderClientRequests() {
+  const list = document.querySelector("#clientRequestList");
+  if (!list) return;
+
+  if (clientRequestsConfigured === false) {
+    list.innerHTML = `
+      <article class="empty-state">
+        <h3>Supabase non configuré</h3>
+        <p>Ajoute les variables SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans Vercel pour recevoir les demandes client.</p>
+      </article>
+    `;
+    return;
+  }
+
+  if (!clientRequests.length) {
+    list.innerHTML = `
+      <article class="empty-state">
+        <h3>Aucune demande client</h3>
+        <p>Les preuves de paiement, échéanciers et messages envoyés depuis le lien client apparaîtront ici.</p>
+      </article>
+    `;
+    return;
+  }
+
+  list.innerHTML = clientRequests.map((request) => `
+    <article class="client-request-card">
+      <div>
+        <div class="meta-row">
+          <span class="badge ${request.status === "traité" ? "low" : "promise"}">${escapeHtml(request.status || "nouveau")}</span>
+          <span class="badge neutral">${escapeHtml(clientRequestLabel(request.action_type))}</span>
+        </div>
+        <h3>${escapeHtml(request.client_name || "Client")}</h3>
+        <p>${escapeHtml(request.message || "Aucun message")}</p>
+        <small>${escapeHtml(request.case_id || "")} - ${new Date(request.created_at).toLocaleString("fr-FR")}</small>
+      </div>
+      <div class="inline-actions">
+        <button class="secondary-button" type="button" ${request.status === "traité" ? "disabled" : `data-client-request-done="${escapeHtml(request.id)}"`}>Marquer traitée</button>
+      </div>
+    </article>
+  `).join("");
+}
+
+async function loadClientRequests() {
+  const list = document.querySelector("#clientRequestList");
+  if (list) {
+    list.innerHTML = `<article class="empty-state"><h3>Chargement...</h3><p>Lecture des demandes client.</p></article>`;
+  }
+
+  try {
+    const response = await fetch("/api/client-actions");
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      clientRequestsConfigured = payload.configured === false ? false : clientRequestsConfigured;
+      clientRequests = [];
+      renderClientRequests();
+      return;
+    }
+    clientRequestsConfigured = payload.configured !== false;
+    clientRequests = Array.isArray(payload.requests) ? payload.requests : [];
+    renderClientRequests();
+  } catch (error) {
+    clientRequestsConfigured = false;
+    clientRequests = [];
+    renderClientRequests();
+  }
+}
+
+async function markClientRequestDone(id) {
+  try {
+    const response = await fetch("/api/client-actions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: "traité" })
+    });
+    if (!response.ok) throw new Error("Mise à jour impossible");
+    await loadClientRequests();
+    toast("Demande client traitée");
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function renderAgentFilter() {
@@ -2796,6 +2889,7 @@ function startApplication() {
   renderClients();
   renderAgentsAdmin();
   renderLetters();
+  loadClientRequests();
   resetOrderForm();
 }
 
@@ -2904,6 +2998,7 @@ function bindEvents() {
   document.querySelector("#logoutButton")?.addEventListener("click", logout);
   document.querySelector("#newClientButton")?.addEventListener("click", () => openClientForm());
   document.querySelector("#newAgentButton")?.addEventListener("click", () => openAgentForm());
+  document.querySelector("#refreshClientRequests")?.addEventListener("click", loadClientRequests);
   document.querySelector("#generateLetterButton")?.addEventListener("click", () => {
     const id = document.querySelector("#letterCaseSelect")?.value;
     if (id) generateLetterForCase(id, document.querySelector("#letterTypeSelect")?.value || "Mise en demeure");
@@ -2975,6 +3070,7 @@ function bindEvents() {
     const clientLetterButton = closestAction(event.target, "[data-client-letter]");
     const agentEditButton = closestAction(event.target, "[data-agent-edit]");
     const agentToggleButton = closestAction(event.target, "[data-agent-toggle]");
+    const clientRequestDoneButton = closestAction(event.target, "[data-client-request-done]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -3022,6 +3118,7 @@ function bindEvents() {
     if (clientLetterButton) generateLetterForClient(clientLetterButton.dataset.clientLetter);
     if (agentEditButton) openAgentForm(agentEditButton.dataset.agentEdit);
     if (agentToggleButton) toggleAgent(agentToggleButton.dataset.agentToggle);
+    if (clientRequestDoneButton) markClientRequestDone(clientRequestDoneButton.dataset.clientRequestDone);
     if (actionButton) toast(`${actionButton.dataset.action} pour ${actionButton.dataset.id}`);
   });
 

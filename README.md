@@ -57,6 +57,21 @@ Ces identifiants verrouillent les versions publiques partageables quand le backe
 
 La base est creee automatiquement dans `data/recouvria.sqlite`. Ce dossier est ignore par Git.
 
+## Supabase
+
+Pour connecter le lien client au lien administration :
+
+1. Créer un projet Supabase.
+2. Exécuter le script SQL `supabase/schema.sql` dans SQL Editor.
+3. Ajouter ces variables dans Vercel, environnement Production :
+
+```text
+SUPABASE_URL=https://xxxxxxxxxxxxxxxxxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+Une fois configuré, les boutons du lien client créent des demandes dans Supabase et l'administration les affiche dans le tableau de bord.
+
 ## Structure
 
 - `index.html` : structure de l'interface

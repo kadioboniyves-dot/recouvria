@@ -888,9 +888,30 @@ select:focus,
 }
 
 .letter-list,
-.agent-admin-list {
+.agent-admin-list,
+.client-request-list {
   display: grid;
   gap: 12px;
+}
+
+.client-request-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.client-request-card p {
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.client-request-card small {
+  color: var(--muted);
 }
 
 .letter-row,
@@ -1706,6 +1727,7 @@ td small {
   .preview-row,
   .letter-row,
   .agent-admin-row,
+  .client-request-card,
   .client-card-main,
   .payment-grid,
   .order-summary,

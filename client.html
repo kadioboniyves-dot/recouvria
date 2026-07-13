@@ -74,11 +74,11 @@
             </div>
           </div>
           <div class="client-action-list">
-            <button class="primary-button" type="button" data-client-action="Preuve de paiement envoyée">Envoyer preuve paiement</button>
-            <button class="secondary-button" type="button" data-client-action="Demande d'échéancier enregistrée">Demander échéancier</button>
-            <button class="secondary-button" type="button" data-client-action="Message transmis au service recouvrement">Contacter recouvrement</button>
+            <button class="primary-button" type="button" data-client-action="preuve_paiement" data-client-label="Preuve de paiement">Envoyer preuve paiement</button>
+            <button class="secondary-button" type="button" data-client-action="echeancier" data-client-label="Demande d'échéancier">Demander échéancier</button>
+            <button class="secondary-button" type="button" data-client-action="message" data-client-label="Message au recouvrement">Contacter recouvrement</button>
           </div>
-          <p class="helper-text">Les demandes sont simulées sur ce lien public. La version backend pourra les enregistrer dans une base commune.</p>
+          <p class="helper-text" id="clientActionStatus">Les demandes sont transmises à l'administration quand Supabase est configuré.</p>
         </article>
       </section>
 
@@ -98,6 +98,6 @@
     </main>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="client.js?v=1"></script>
+    <script src="client.js?v=2"></script>
   </body>
 </html>
