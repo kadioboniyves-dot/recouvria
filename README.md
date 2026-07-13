@@ -5,8 +5,8 @@ Recouvria est une application web de gestion du recouvrement client avec interfa
 Versions publiques :
 
 ```text
-https://kadioboniyves-dot.github.io/recouvria/
-https://propose-moi-une-application-de-reco.vercel.app/
+Admin : https://propose-moi-une-application-de-reco.vercel.app/admin
+Client : https://propose-moi-une-application-de-reco.vercel.app/client
 ```
 
 ## Fonctionnalites
@@ -46,7 +46,14 @@ Email : admin@recouvria.local
 Mot de passe : recouvria2026
 ```
 
-Le meme mot de passe verrouille aussi la version publique partageable quand le backend local n'est pas disponible.
+Compte client public :
+
+```text
+Email : client@kfnpharma.local
+Mot de passe : client2026
+```
+
+Ces identifiants verrouillent les versions publiques partageables quand le backend local n'est pas disponible.
 
 La base est creee automatiquement dans `data/recouvria.sqlite`. Ce dossier est ignore par Git.
 

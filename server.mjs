@@ -670,7 +670,12 @@ function saveState(payload) {
 
 function resolvePath(url) {
   const pathname = decodeURIComponent(new URL(url, `http://${host}:${port}`).pathname);
-  const requested = pathname === "/" ? "/index.html" : pathname;
+  const routes = {
+    "/": "/index.html",
+    "/admin": "/index.html",
+    "/client": "/client.html"
+  };
+  const requested = routes[pathname] || pathname;
   const filePath = normalize(join(root, requested));
   if (!filePath.startsWith(root)) return null;
   return filePath;

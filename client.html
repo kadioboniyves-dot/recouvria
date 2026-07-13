@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KFN Pharma - Espace client</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23005f2f'/%3E%3Ccircle cx='22' cy='32' r='11' fill='%23d8b400'/%3E%3Cpath d='M38 22h12M38 32h12M38 42h8' stroke='white' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="client-body">
+    <section class="auth-gate" id="clientAuthGate">
+      <form class="login-card" id="clientLoginForm">
+        <img class="brand-logo auth-logo" src="assets/kfn-pharma-recouvrement.png" alt="KFN Pharma - Administration de recouvrement" />
+        <div>
+          <p class="eyebrow">Espace client</p>
+          <h1>Consultation dossier</h1>
+          <p>Accède à tes factures, montants restants et demandes liées au recouvrement.</p>
+        </div>
+        <label>
+          <span>Email</span>
+          <input name="email" type="email" value="client@kfnpharma.local" autocomplete="username" required />
+        </label>
+        <label>
+          <span>Mot de passe</span>
+          <input name="password" type="password" value="client2026" autocomplete="current-password" required />
+        </label>
+        <p class="login-error" id="clientLoginError"></p>
+        <button class="primary-button" type="submit">Ouvrir mon espace</button>
+      </form>
+    </section>
+
+    <main class="client-portal" id="clientPortal" hidden>
+      <header class="client-header">
+        <img class="brand-logo client-logo" src="assets/kfn-pharma-recouvrement.png" alt="KFN Pharma - Administration de recouvrement" />
+        <div class="client-header-actions">
+          <span class="session-chip"><strong>Clinique Saint Gabriel</strong><span>Espace client sécurisé</span></span>
+          <button class="secondary-button" id="clientLogoutButton" type="button">Quitter</button>
+        </div>
+      </header>
+
+      <section class="client-hero-panel">
+        <div>
+          <p class="eyebrow">Dossier client</p>
+          <h1>Clinique Saint Gabriel</h1>
+          <p>Awa Kouame - awa.kouame@saintgabriel.ci - +225 07 48 22 91 34</p>
+        </div>
+        <div class="client-balance">
+          <span>Reste à régulariser</span>
+          <strong>6 600 000 FCFA</strong>
+          <small>Prochaine action : validation du plan de paiement</small>
+        </div>
+      </section>
+
+      <section class="client-grid-page">
+        <article class="surface">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Factures</p>
+              <h2>Situation actuelle</h2>
+            </div>
+          </div>
+          <div class="client-invoice-list">
+            <div><strong>BC-2026-0518</strong><span>Consommables médicaux</span><b>3 900 000 FCFA</b></div>
+            <div><strong>BC-2026-0518</strong><span>Kits de stérilisation</span><b>900 000 FCFA</b></div>
+            <div><strong>RC-2026-0148</strong><span>Solde ancien dossier</span><b>1 800 000 FCFA</b></div>
+          </div>
+        </article>
+
+        <article class="surface">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Actions</p>
+              <h2>Répondre au recouvrement</h2>
+            </div>
+          </div>
+          <div class="client-action-list">
+            <button class="primary-button" type="button" data-client-action="Preuve de paiement envoyée">Envoyer preuve paiement</button>
+            <button class="secondary-button" type="button" data-client-action="Demande d'échéancier enregistrée">Demander échéancier</button>
+            <button class="secondary-button" type="button" data-client-action="Message transmis au service recouvrement">Contacter recouvrement</button>
+          </div>
+          <p class="helper-text">Les demandes sont simulées sur ce lien public. La version backend pourra les enregistrer dans une base commune.</p>
+        </article>
+      </section>
+
+      <section class="surface">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Historique</p>
+            <h2>Dernières communications</h2>
+          </div>
+        </div>
+        <div class="activity-log">
+          <div><strong>Email de relance envoyé</strong><span>Service recouvrement KFN Pharma</span></div>
+          <div><strong>Promesse partielle enregistrée</strong><span>2 000 000 FCFA attendus</span></div>
+          <div><strong>Appel superviseur planifié</strong><span>Validation du plan de paiement</span></div>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="client.js?v=1"></script>
+  </body>
+</html>
