@@ -42,7 +42,7 @@ export default async function handler(request, response) {
   }
 
   if (!isConfigured()) {
-    send(response, 503, {
+    send(response, request.method === "GET" ? 200 : 503, {
       configured: false,
       error: "Supabase n'est pas configuré. Ajoute SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans Vercel."
     });
