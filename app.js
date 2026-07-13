@@ -797,6 +797,10 @@ function clientRequestLabel(type) {
   }[type] || type || "Demande";
 }
 
+function getClientRequest(id) {
+  return clientRequests.find((request) => request.id === id);
+}
+
 function renderClientRequests() {
   const list = document.querySelector("#clientRequestList");
   if (!list) return;
@@ -833,10 +837,59 @@ function renderClientRequests() {
         <small>${escapeHtml(request.case_id || "")} - ${new Date(request.created_at).toLocaleString("fr-FR")}</small>
       </div>
       <div class="inline-actions">
+        <button class="primary-button" type="button" data-client-request-open="${escapeHtml(request.id)}">Ouvrir</button>
         <button class="secondary-button" type="button" ${request.status === "traité" ? "disabled" : `data-client-request-done="${escapeHtml(request.id)}"`}>Marquer traitée</button>
       </div>
     </article>
   `).join("");
+}
+
+function openClientRequest(id) {
+  const request = getClientRequest(id);
+  if (!request) {
+    toast("Demande introuvable");
+    return;
+  }
+
+  const createdAt = request.created_at
+    ? new Date(request.created_at).toLocaleString("fr-FR")
+    : "Date non disponible";
+  const amount = Number(request.amount || 0);
+
+  document.querySelector("#drawerContent").innerHTML = `
+    <div class="detail-header">
+      <p class="eyebrow">Demande client</p>
+      <h2>${escapeHtml(clientRequestLabel(request.action_type))}</h2>
+      <p>${escapeHtml(request.client_name || "Client")} - ${escapeHtml(request.client_email || "")}</p>
+      <div class="meta-row">
+        <span class="badge ${request.status === "traité" ? "low" : "promise"}">${escapeHtml(request.status || "nouveau")}</span>
+        <span class="badge neutral">${escapeHtml(request.case_id || "Sans dossier")}</span>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-stat"><span>Client</span><strong>${escapeHtml(request.client_name || "-")}</strong></div>
+      <div class="detail-stat"><span>Email</span><strong>${escapeHtml(request.client_email || "-")}</strong></div>
+      <div class="detail-stat"><span>Dossier</span><strong>${escapeHtml(request.case_id || "-")}</strong></div>
+      <div class="detail-stat"><span>Montant</span><strong>${amount ? formatMoney(amount) : "-"}</strong></div>
+      <div class="detail-stat"><span>Type</span><strong>${escapeHtml(clientRequestLabel(request.action_type))}</strong></div>
+      <div class="detail-stat"><span>Reçu le</span><strong>${escapeHtml(createdAt)}</strong></div>
+    </div>
+
+    <section class="request-message-box">
+      <p class="eyebrow">Message complet</p>
+      <p>${escapeHtml(request.message || "Aucun message fourni.")}</p>
+    </section>
+
+    <div class="drawer-actions">
+      <button class="primary-button" type="button" ${request.status === "traité" ? "disabled" : `data-client-request-done="${escapeHtml(request.id)}"`}>Marquer traitée</button>
+      ${request.case_id ? `<button class="secondary-button" type="button" data-open="${escapeHtml(request.case_id)}">Voir dossier</button>` : ""}
+      <button class="secondary-button" type="button" data-client-request-email="${escapeHtml(request.client_email || "")}">Répondre par email</button>
+    </div>
+  `;
+
+  document.querySelector("#drawer").classList.add("open");
+  document.querySelector("#drawer").setAttribute("aria-hidden", "false");
 }
 
 async function loadClientRequests() {
@@ -866,6 +919,7 @@ async function loadClientRequests() {
 
 async function markClientRequestDone(id) {
   try {
+    const shouldRefreshDrawer = document.querySelector("#drawer")?.classList.contains("open");
     const response = await fetch("/api/client-actions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -873,6 +927,7 @@ async function markClientRequestDone(id) {
     });
     if (!response.ok) throw new Error("Mise à jour impossible");
     await loadClientRequests();
+    if (shouldRefreshDrawer && getClientRequest(id)) openClientRequest(id);
     toast("Demande client traitée");
   } catch (error) {
     toast(error.message);
@@ -3070,7 +3125,9 @@ function bindEvents() {
     const clientLetterButton = closestAction(event.target, "[data-client-letter]");
     const agentEditButton = closestAction(event.target, "[data-agent-edit]");
     const agentToggleButton = closestAction(event.target, "[data-agent-toggle]");
+    const clientRequestOpenButton = closestAction(event.target, "[data-client-request-open]");
     const clientRequestDoneButton = closestAction(event.target, "[data-client-request-done]");
+    const clientRequestEmailButton = closestAction(event.target, "[data-client-request-email]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -3118,7 +3175,16 @@ function bindEvents() {
     if (clientLetterButton) generateLetterForClient(clientLetterButton.dataset.clientLetter);
     if (agentEditButton) openAgentForm(agentEditButton.dataset.agentEdit);
     if (agentToggleButton) toggleAgent(agentToggleButton.dataset.agentToggle);
+    if (clientRequestOpenButton) openClientRequest(clientRequestOpenButton.dataset.clientRequestOpen);
     if (clientRequestDoneButton) markClientRequestDone(clientRequestDoneButton.dataset.clientRequestDone);
+    if (clientRequestEmailButton) {
+      const email = clientRequestEmailButton.dataset.clientRequestEmail;
+      if (email) {
+        window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Réponse KFN Pharma - Recouvrement")}`;
+      } else {
+        toast("Email client indisponible");
+      }
+    }
     if (actionButton) toast(`${actionButton.dataset.action} pour ${actionButton.dataset.id}`);
   });
 

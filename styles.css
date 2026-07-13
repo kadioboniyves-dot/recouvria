@@ -1308,6 +1308,21 @@ td small {
   overflow-wrap: anywhere;
 }
 
+.request-message-box {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+}
+
+.request-message-box p:last-child {
+  margin: 6px 0 0;
+  color: var(--ink);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .muted-line {
   color: var(--muted);
   overflow-wrap: anywhere;
