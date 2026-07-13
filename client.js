@@ -116,6 +116,19 @@ function buildClientMessage(formType, form) {
   return `Preuve de paiement : ${fieldValue(form, "message").trim()}`;
 }
 
+function validateClientActionForm(form) {
+  const formType = form.dataset.clientForm;
+  if (formType === "echeancier" && !fieldValue(form, "dueDate")) {
+    toast("Ajoute une date d'échéance.");
+    return false;
+  }
+  if (formType !== "echeancier" && !fieldValue(form, "message").trim()) {
+    toast("Ajoute un message.");
+    return false;
+  }
+  return true;
+}
+
 async function createClientRequest(actionType, label, message) {
   const status = document.querySelector("#clientActionStatus");
   if (status) status.textContent = "Transmission en cours...";
@@ -145,6 +158,7 @@ async function createClientRequest(actionType, label, message) {
 }
 
 function submitClientActionForm(form) {
+  if (!validateClientActionForm(form)) return;
   const formType = form.dataset.clientForm;
   const submitButton = form.querySelector("button[type='submit']");
   submitButton.disabled = true;
@@ -208,7 +222,7 @@ function bindClientEvents() {
     }
     if (formSubmit) {
       const form = formSubmit.closest("[data-client-form]");
-      if (form?.checkValidity()) {
+      if (form) {
         event.preventDefault();
         submitClientActionForm(form);
       }
