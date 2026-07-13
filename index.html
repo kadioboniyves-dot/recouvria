@@ -49,11 +49,7 @@
         </a>
 
         <nav class="nav-list">
-          <button class="nav-item active" data-view="demo" type="button">
-            <span class="icon" aria-hidden="true">M</span>
-            Mode demo
-          </button>
-          <button class="nav-item" data-view="dashboard" type="button">
+          <button class="nav-item active" data-view="dashboard" type="button">
             <span class="icon" aria-hidden="true">D</span>
             Tableau de bord
           </button>
@@ -112,7 +108,7 @@
             </label>
             <div class="session-chip">
               <strong id="sessionUser">Mode local</strong>
-              <span id="syncStatus">Demo locale</span>
+              <span id="syncStatus">Base locale</span>
             </div>
             <button class="secondary-button" id="exportButton" type="button">Exporter</button>
             <button class="primary-button" id="newCaseButton" type="button">Nouveau dossier</button>
@@ -120,80 +116,7 @@
           </div>
         </header>
 
-        <section class="view active" id="demo" aria-label="Mode demo Recouvria">
-          <div class="demo-hero">
-            <div class="demo-copy">
-              <p class="eyebrow">Mode demo client</p>
-              <h2>Recouvria pilote vos relances, engagements et encaissements depuis un seul espace.</h2>
-              <p>
-                Cette version de demonstration montre le parcours complet d'un service de recouvrement :
-                prioriser les dossiers, effectuer les relances, enregistrer les paiements et produire un reporting.
-              </p>
-              <div class="demo-actions">
-                <button class="primary-button" data-view-link="dashboard" type="button">Ouvrir le tableau de bord</button>
-                <button class="secondary-button" data-view-link="portfolio" type="button">Voir le portefeuille</button>
-                <button class="secondary-button" id="demoResetButton" type="button">Reinitialiser la demo</button>
-              </div>
-            </div>
-            <div class="demo-preview" aria-label="Apercu operationnel Recouvria">
-              <div class="preview-header">
-                <span></span>
-                <strong>Centre recouvrement</strong>
-                <small>Live demo</small>
-              </div>
-              <div class="preview-kpis">
-                <article><span>Net a recouvrer</span><strong>27,35 M</strong></article>
-                <article><span>Promesses</span><strong>3</strong></article>
-                <article><span>Urgents</span><strong>3</strong></article>
-              </div>
-              <div class="preview-row">
-                <span class="badge high">Eleve</span>
-                <div><strong>Clinique Saint Gabriel</strong><small>Appel de validation du plan</small></div>
-                <strong>6,6 M</strong>
-              </div>
-              <div class="preview-row">
-                <span class="badge legal">Contentieux</span>
-                <div><strong>BTP Horizon</strong><small>Mise en demeure</small></div>
-                <strong>9 M</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="demo-grid">
-            <article class="surface demo-card">
-              <span class="demo-card-icon">1</span>
-              <h3>Qualifier les creances</h3>
-              <p>Centralisez les debiteurs, les montants dus, les retards, les risques et l'agent responsable.</p>
-              <button class="ghost-button" data-view-link="portfolio" type="button">Portefeuille</button>
-            </article>
-            <article class="surface demo-card">
-              <span class="demo-card-icon">2</span>
-              <h3>Relancer avec methode</h3>
-              <p>Planifiez appels, SMS, emails, WhatsApp et mises en demeure avec historique automatique.</p>
-              <button class="ghost-button" data-view-link="relances" type="button">Relances</button>
-            </article>
-            <article class="surface demo-card">
-              <span class="demo-card-icon">3</span>
-              <h3>Suivre les paiements</h3>
-              <p>Enregistrez les engagements, encaissez les paiements et cloturez les dossiers soldes.</p>
-              <button class="ghost-button" data-view-link="paiements" type="button">Paiements</button>
-            </article>
-            <article class="surface demo-card">
-              <span class="demo-card-icon">4</span>
-              <h3>Piloter la performance</h3>
-              <p>Analysez les encaissements, les retards, les promesses et l'activite par agent.</p>
-              <button class="ghost-button" data-view-link="rapports" type="button">Rapports</button>
-            </article>
-            <article class="surface demo-card">
-              <span class="demo-card-icon">5</span>
-              <h3>Suivre les commandes</h3>
-              <p>Importez les produits commandes, rattachez-les aux clients et générez automatiquement les dossiers impayes.</p>
-              <button class="ghost-button" data-view-link="administration" type="button">Commandes</button>
-            </article>
-          </div>
-        </section>
-
-        <section class="view" id="dashboard" aria-label="Tableau de bord">
+        <section class="view active" id="dashboard" aria-label="Tableau de bord">
           <div class="kpi-grid" id="kpiGrid"></div>
 
           <div class="dashboard-grid">
@@ -481,6 +404,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=30"></script>
+    <script src="app.js?v=31"></script>
   </body>
 </html>

@@ -26,7 +26,6 @@ https://propose-moi-une-application-de-reco.vercel.app/
 - Suivi des commandes clients et generation de dossiers impayes
 - Rapports et exports Excel
 - Sauvegarde locale dans le navigateur
-- Mode demo client pour presentation commerciale
 
 ## Lancer l'application
 
@@ -40,7 +39,7 @@ Puis ouvrir :
 http://localhost:4173/
 ```
 
-Compte de demonstration :
+Compte administrateur local :
 
 ```text
 Email : admin@recouvria.local

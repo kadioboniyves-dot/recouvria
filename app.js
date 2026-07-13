@@ -2310,7 +2310,7 @@ function handleOrderImport(file) {
   reader.readAsText(file, "utf-8");
 }
 
-function resetDemo() {
+function resetLocalData() {
   cases = structuredClone(seedCases);
   orders = structuredClone(seedOrders);
   agents = normalizeAgents(structuredClone(seedAgents));
@@ -2336,8 +2336,8 @@ function resetDemo() {
   });
   refreshViews();
   closeDrawer();
-  switchView("demo");
-  toast("Données de démonstration réinitialisées");
+  switchView("dashboard");
+  toast("Données réinitialisées");
 }
 
 function handleFormSave(form) {
@@ -2736,7 +2736,7 @@ function updateSessionBadge(message = "") {
   const userName = document.querySelector("#sessionUser");
   const sync = document.querySelector("#syncStatus");
   if (userName) userName.textContent = currentUser?.name || (apiMode ? "Utilisateur" : "Mode local");
-  if (sync) sync.textContent = message || (apiMode ? "Base SQLite" : "Demo locale");
+  if (sync) sync.textContent = message || (apiMode ? "Base SQLite" : "Base locale");
 }
 
 function showAuth(message = "") {
@@ -2797,10 +2797,10 @@ async function initializeAuth() {
     startApplication();
   } catch (error) {
     apiMode = false;
-    currentUser = { name: "Mode demo local", email: "" };
+    currentUser = { name: "Mode local", email: "" };
     showApp();
     startApplication();
-    toast("API indisponible : mode demo local activé");
+    toast("API indisponible : mode local activé");
   }
 }
 
@@ -2842,7 +2842,7 @@ async function logout() {
   }
   currentUser = null;
   if (apiMode) showAuth("Session fermée.");
-  else updateSessionBadge("Demo locale");
+  else updateSessionBadge("Base locale");
 }
 
 function bindEvents() {
@@ -3000,7 +3000,6 @@ function bindEvents() {
     handleOrderImport(event.target.files?.[0]);
     event.target.value = "";
   });
-  document.querySelector("#demoResetButton").addEventListener("click", resetDemo);
 }
 
 async function init() {
