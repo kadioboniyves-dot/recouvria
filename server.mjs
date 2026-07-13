@@ -673,6 +673,7 @@ function resolvePath(url) {
   const routes = {
     "/": "/index.html",
     "/admin": "/index.html",
+    "/administration": "/index.html",
     "/client": "/client.html"
   };
   const requested = routes[pathname] || pathname;

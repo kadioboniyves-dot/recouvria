@@ -5,7 +5,7 @@ Recouvria est une application web de gestion du recouvrement client avec interfa
 Versions publiques :
 
 ```text
-Admin : https://propose-moi-une-application-de-reco.vercel.app/admin
+Admin : https://propose-moi-une-application-de-reco.vercel.app/administration
 Client : https://propose-moi-une-application-de-reco.vercel.app/client
 ```
 

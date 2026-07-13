@@ -7,6 +7,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/administration",
+      "destination": "/index.html"
+    },
+    {
       "source": "/client",
       "destination": "/client.html"
     }
