@@ -1519,6 +1519,72 @@ td small {
   gap: 10px;
 }
 
+.client-action-panel {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.client-action-form {
+  display: grid;
+  gap: 12px;
+}
+
+.client-action-form h3 {
+  margin: 0;
+}
+
+.client-action-form p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.client-action-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.client-action-form input,
+.client-action-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: var(--ink);
+  font: inherit;
+  text-transform: none;
+  resize: vertical;
+}
+
+.client-form-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.contact-box {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--green-soft);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdfc;
+}
+
+.contact-box strong {
+  color: var(--green);
+}
+
+.contact-box span {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
 .client-invoice-list div {
   display: grid;
   grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1fr) auto;

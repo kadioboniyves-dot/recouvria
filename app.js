@@ -801,6 +801,19 @@ function getClientRequest(id) {
   return clientRequests.find((request) => request.id === id);
 }
 
+function requestStatusClass(status) {
+  return {
+    traité: "low",
+    accordé: "low",
+    refusé: "high",
+    nouveau: "promise"
+  }[status] || "promise";
+}
+
+function formatRequestMessage(message) {
+  return escapeHtml(message || "Aucun message fourni.").replace(/\n/g, "<br>");
+}
+
 function renderClientRequests() {
   const list = document.querySelector("#clientRequestList");
   if (!list) return;
@@ -829,7 +842,7 @@ function renderClientRequests() {
     <article class="client-request-card">
       <div>
         <div class="meta-row">
-          <span class="badge ${request.status === "traité" ? "low" : "promise"}">${escapeHtml(request.status || "nouveau")}</span>
+          <span class="badge ${requestStatusClass(request.status)}">${escapeHtml(request.status || "nouveau")}</span>
           <span class="badge neutral">${escapeHtml(clientRequestLabel(request.action_type))}</span>
         </div>
         <h3>${escapeHtml(request.client_name || "Client")}</h3>
@@ -862,7 +875,7 @@ function openClientRequest(id) {
       <h2>${escapeHtml(clientRequestLabel(request.action_type))}</h2>
       <p>${escapeHtml(request.client_name || "Client")} - ${escapeHtml(request.client_email || "")}</p>
       <div class="meta-row">
-        <span class="badge ${request.status === "traité" ? "low" : "promise"}">${escapeHtml(request.status || "nouveau")}</span>
+        <span class="badge ${requestStatusClass(request.status)}">${escapeHtml(request.status || "nouveau")}</span>
         <span class="badge neutral">${escapeHtml(request.case_id || "Sans dossier")}</span>
       </div>
     </div>
@@ -878,10 +891,14 @@ function openClientRequest(id) {
 
     <section class="request-message-box">
       <p class="eyebrow">Message complet</p>
-      <p>${escapeHtml(request.message || "Aucun message fourni.")}</p>
+      <p>${formatRequestMessage(request.message)}</p>
     </section>
 
     <div class="drawer-actions">
+      ${request.action_type === "echeancier" && request.status === "nouveau" ? `
+        <button class="primary-button" type="button" data-client-request-status="${escapeHtml(request.id)}" data-client-request-next-status="accordé">Accorder l'échéancier</button>
+        <button class="secondary-button" type="button" data-client-request-status="${escapeHtml(request.id)}" data-client-request-next-status="refusé">Refuser</button>
+      ` : ""}
       <button class="primary-button" type="button" ${request.status === "traité" ? "disabled" : `data-client-request-done="${escapeHtml(request.id)}"`}>Marquer traitée</button>
       ${request.case_id ? `<button class="secondary-button" type="button" data-open="${escapeHtml(request.case_id)}">Voir dossier</button>` : ""}
       <button class="secondary-button" type="button" data-client-request-email="${escapeHtml(request.client_email || "")}">Répondre par email</button>
@@ -918,17 +935,21 @@ async function loadClientRequests() {
 }
 
 async function markClientRequestDone(id) {
+  return updateClientRequestStatus(id, "traité", "Demande client traitée");
+}
+
+async function updateClientRequestStatus(id, status, successMessage = "Demande client mise à jour") {
   try {
     const shouldRefreshDrawer = document.querySelector("#drawer")?.classList.contains("open");
     const response = await fetch("/api/client-actions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: "traité" })
+      body: JSON.stringify({ id, status })
     });
     if (!response.ok) throw new Error("Mise à jour impossible");
     await loadClientRequests();
     if (shouldRefreshDrawer && getClientRequest(id)) openClientRequest(id);
-    toast("Demande client traitée");
+    toast(successMessage);
   } catch (error) {
     toast(error.message);
   }
@@ -3127,6 +3148,7 @@ function bindEvents() {
     const agentToggleButton = closestAction(event.target, "[data-agent-toggle]");
     const clientRequestOpenButton = closestAction(event.target, "[data-client-request-open]");
     const clientRequestDoneButton = closestAction(event.target, "[data-client-request-done]");
+    const clientRequestStatusButton = closestAction(event.target, "[data-client-request-status]");
     const clientRequestEmailButton = closestAction(event.target, "[data-client-request-email]");
 
     if (saveFormButton) {
@@ -3177,6 +3199,13 @@ function bindEvents() {
     if (agentToggleButton) toggleAgent(agentToggleButton.dataset.agentToggle);
     if (clientRequestOpenButton) openClientRequest(clientRequestOpenButton.dataset.clientRequestOpen);
     if (clientRequestDoneButton) markClientRequestDone(clientRequestDoneButton.dataset.clientRequestDone);
+    if (clientRequestStatusButton) {
+      updateClientRequestStatus(
+        clientRequestStatusButton.dataset.clientRequestStatus,
+        clientRequestStatusButton.dataset.clientRequestNextStatus,
+        clientRequestStatusButton.dataset.clientRequestNextStatus === "accordé" ? "Échéancier accordé" : "Échéancier refusé"
+      );
+    }
     if (clientRequestEmailButton) {
       const email = clientRequestEmailButton.dataset.clientRequestEmail;
       if (email) {

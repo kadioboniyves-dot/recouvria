@@ -1,6 +1,12 @@
 const clientAuthKey = "kfnClientAuthenticated";
 const clientEmail = "client@kfnpharma.local";
 const clientPassword = "client2026";
+const clientProfile = {
+  name: "Clinique Saint Gabriel",
+  email: clientEmail,
+  caseId: "RC-2026-0148",
+  amount: 6600000
+};
 
 function fieldValue(form, name) {
   return form.querySelector(`[name="${name}"]`)?.value || "";
@@ -13,8 +19,104 @@ function toast(message) {
   window.setTimeout(() => element.classList.remove("show"), 2200);
 }
 
-async function createClientRequest(actionType, label) {
-  const note = window.prompt(`${label} : ajoute un commentaire pour l'administration`, "");
+function formatMoney(value) {
+  return `${Number(value || 0).toLocaleString("fr-FR")} FCFA`;
+}
+
+function showClientActionPanel(actionType, label) {
+  const panel = document.querySelector("#clientActionPanel");
+  panel.hidden = false;
+
+  if (actionType === "echeancier") {
+    panel.innerHTML = `
+      <form class="client-action-form" data-client-form="echeancier">
+        <h3>Proposer un échéancier</h3>
+        <p>Indique la date à laquelle tu proposes de régler, puis ajoute un commentaire si nécessaire.</p>
+        <label>
+          <span>Date d'échéance proposée</span>
+          <input name="dueDate" type="date" required />
+        </label>
+        <label>
+          <span>Montant proposé</span>
+          <input name="amount" type="number" min="1" step="1000" value="${clientProfile.amount}" required />
+        </label>
+        <label>
+          <span>Message à l'administration</span>
+          <textarea name="message" rows="3" placeholder="Exemple : nous proposons de régler à cette date selon notre trésorerie."></textarea>
+        </label>
+        <div class="client-form-actions">
+          <button class="primary-button" type="submit">Envoyer la demande</button>
+          <button class="secondary-button" type="button" data-client-panel-close>Annuler</button>
+        </div>
+      </form>
+    `;
+    return;
+  }
+
+  if (actionType === "message") {
+    panel.innerHTML = `
+      <form class="client-action-form" data-client-form="message">
+        <h3>Contacter le recouvrement</h3>
+        <div class="contact-box">
+          <strong>Chef de recouvrement</strong>
+          <span>+225 01 71 76 98 07 / +225 07 59 10 26 84</span>
+          <strong>Administration de recouvrement</strong>
+          <span>+225 01 43 43 43 19</span>
+        </div>
+        <label>
+          <span>Message à l'administration</span>
+          <textarea name="message" rows="3" placeholder="Écris ici l'objet de ton message." required></textarea>
+        </label>
+        <div class="client-form-actions">
+          <button class="primary-button" type="submit">Envoyer le message</button>
+          <button class="secondary-button" type="button" data-client-panel-close>Fermer</button>
+        </div>
+      </form>
+    `;
+    return;
+  }
+
+  panel.innerHTML = `
+    <form class="client-action-form" data-client-form="preuve_paiement">
+      <h3>${label}</h3>
+      <p>Ajoute la référence du paiement ou une précision pour que l'administration identifie le règlement.</p>
+      <label>
+        <span>Référence ou commentaire</span>
+        <textarea name="message" rows="3" placeholder="Exemple : virement effectué, référence..." required></textarea>
+      </label>
+      <div class="client-form-actions">
+        <button class="primary-button" type="submit">Envoyer la preuve</button>
+        <button class="secondary-button" type="button" data-client-panel-close>Annuler</button>
+      </div>
+    </form>
+  `;
+}
+
+function buildClientMessage(formType, form) {
+  if (formType === "echeancier") {
+    const dueDate = fieldValue(form, "dueDate");
+    const amount = Number(fieldValue(form, "amount") || clientProfile.amount);
+    const message = fieldValue(form, "message").trim();
+    return [
+      `Date d'échéance proposée : ${new Date(`${dueDate}T00:00:00`).toLocaleDateString("fr-FR")}`,
+      `Montant proposé : ${formatMoney(amount)}`,
+      message ? `Commentaire client : ${message}` : "Commentaire client : aucun commentaire ajouté."
+    ].join("\n");
+  }
+
+  if (formType === "message") {
+    return [
+      "Demande de contact avec le recouvrement.",
+      "Chef de recouvrement : +225 01 71 76 98 07 / +225 07 59 10 26 84",
+      "Administration de recouvrement : +225 01 43 43 43 19",
+      `Message client : ${fieldValue(form, "message").trim()}`
+    ].join("\n");
+  }
+
+  return `Preuve de paiement : ${fieldValue(form, "message").trim()}`;
+}
+
+async function createClientRequest(actionType, label, message) {
   const status = document.querySelector("#clientActionStatus");
   if (status) status.textContent = "Transmission en cours...";
 
@@ -22,12 +124,12 @@ async function createClientRequest(actionType, label) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      clientName: "Clinique Saint Gabriel",
-      clientEmail,
-      caseId: "RC-2026-0148",
+      clientName: clientProfile.name,
+      clientEmail: clientProfile.email,
+      caseId: clientProfile.caseId,
       actionType,
-      message: note || label,
-      amount: 6600000
+      message: message || label,
+      amount: clientProfile.amount
     })
   });
 
@@ -83,12 +185,31 @@ function bindClientEvents() {
 
   document.body.addEventListener("click", (event) => {
     const action = event.target.closest("[data-client-action]");
+    const closePanel = event.target.closest("[data-client-panel-close]");
+    if (closePanel) {
+      document.querySelector("#clientActionPanel").hidden = true;
+      document.querySelector("#clientActionPanel").innerHTML = "";
+      return;
+    }
     if (!action) return;
-    action.disabled = true;
-    createClientRequest(action.dataset.clientAction, action.dataset.clientLabel || "Demande client")
-      .then(() => toast("Demande envoyée à l'administration"))
+    showClientActionPanel(action.dataset.clientAction, action.dataset.clientLabel || "Demande client");
+  });
+
+  document.body.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-client-form]");
+    if (!form) return;
+    event.preventDefault();
+    const formType = form.dataset.clientForm;
+    const submitButton = form.querySelector("button[type='submit']");
+    submitButton.disabled = true;
+    createClientRequest(formType, form.querySelector("h3")?.textContent || "Demande client", buildClientMessage(formType, form))
+      .then(() => {
+        toast("Demande envoyée à l'administration");
+        document.querySelector("#clientActionPanel").hidden = true;
+        document.querySelector("#clientActionPanel").innerHTML = "";
+      })
       .catch((error) => toast(error.message))
-      .finally(() => { action.disabled = false; });
+      .finally(() => { submitButton.disabled = false; });
   });
 }
 
