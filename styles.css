@@ -830,7 +830,8 @@ select:focus,
 
 .client-card,
 .agent-admin-row,
-.letter-row {
+.letter-row,
+.empty-state {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
@@ -881,9 +882,24 @@ select:focus,
 .letter-row,
 .agent-admin-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
+}
+
+.empty-state {
+  display: grid;
+  gap: 6px;
+}
+
+.empty-state h3,
+.empty-state p {
+  margin: 0;
+}
+
+.empty-state p {
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .agent-admin-stats {

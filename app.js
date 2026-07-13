@@ -1005,7 +1005,12 @@ function renderLetters() {
         <button class="secondary-button" type="button" data-letter-print="${escapeHtml(letter.id)}">Imprimer</button>
       </div>
     </article>
-  `).join("") || `<article class="letter-row"><h3>Aucune lettre générée</h3><p>Choisis un dossier actif pour préparer une relance formelle.</p></article>`;
+  `).join("") || `
+    <article class="empty-state">
+      <h3>Aucune lettre générée</h3>
+      <p>Choisis un dossier actif pour préparer une relance formelle.</p>
+    </article>
+  `;
 }
 
 function clientOptions() {
