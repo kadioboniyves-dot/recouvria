@@ -144,6 +144,20 @@ async function createClientRequest(actionType, label, message) {
   return payload;
 }
 
+function submitClientActionForm(form) {
+  const formType = form.dataset.clientForm;
+  const submitButton = form.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  createClientRequest(formType, form.querySelector("h3")?.textContent || "Demande client", buildClientMessage(formType, form))
+    .then(() => {
+      toast("Demande envoyée à l'administration");
+      document.querySelector("#clientActionPanel").hidden = true;
+      document.querySelector("#clientActionPanel").innerHTML = "";
+    })
+    .catch((error) => toast(error.message))
+    .finally(() => { submitButton.disabled = false; });
+}
+
 function showClientPortal() {
   document.querySelector("#clientAuthGate").hidden = true;
   document.querySelector("#clientPortal").hidden = false;
@@ -186,30 +200,29 @@ function bindClientEvents() {
   document.body.addEventListener("click", (event) => {
     const action = event.target.closest("[data-client-action]");
     const closePanel = event.target.closest("[data-client-panel-close]");
+    const formSubmit = event.target.closest("[data-client-form] button[type='submit']");
     if (closePanel) {
       document.querySelector("#clientActionPanel").hidden = true;
       document.querySelector("#clientActionPanel").innerHTML = "";
+      return;
+    }
+    if (formSubmit) {
+      const form = formSubmit.closest("[data-client-form]");
+      if (form?.checkValidity()) {
+        event.preventDefault();
+        submitClientActionForm(form);
+      }
       return;
     }
     if (!action) return;
     showClientActionPanel(action.dataset.clientAction, action.dataset.clientLabel || "Demande client");
   });
 
-  document.body.addEventListener("submit", (event) => {
+  document.addEventListener("submit", (event) => {
     const form = event.target.closest("[data-client-form]");
     if (!form) return;
     event.preventDefault();
-    const formType = form.dataset.clientForm;
-    const submitButton = form.querySelector("button[type='submit']");
-    submitButton.disabled = true;
-    createClientRequest(formType, form.querySelector("h3")?.textContent || "Demande client", buildClientMessage(formType, form))
-      .then(() => {
-        toast("Demande envoyée à l'administration");
-        document.querySelector("#clientActionPanel").hidden = true;
-        document.querySelector("#clientActionPanel").innerHTML = "";
-      })
-      .catch((error) => toast(error.message))
-      .finally(() => { submitButton.disabled = false; });
+    submitClientActionForm(form);
   });
 }
 
