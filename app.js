@@ -3,6 +3,9 @@ const orderStorageKey = "recouvriaOrdersV3";
 const agentStorageKey = "recouvriaAgentsV1";
 const clientStorageKey = "recouvriaClientsV1";
 const letterStorageKey = "recouvriaLettersV1";
+const publicAuthKey = "recouvriaPublicAuthenticated";
+const publicLoginEmail = "admin@recouvria.local";
+const publicLoginPassword = "recouvria2026";
 
 let apiMode = false;
 let currentUser = null;
@@ -2744,6 +2747,16 @@ function updateSessionBadge(message = "") {
   if (sync) sync.textContent = message || (apiMode ? "Base SQLite" : "Base locale");
 }
 
+function isPublicAuthenticated() {
+  return sessionStorage.getItem(publicAuthKey) === "true";
+}
+
+function authenticatePublic(form) {
+  const email = fieldValue(form, "email").trim().toLowerCase();
+  const password = fieldValue(form, "password");
+  return email === publicLoginEmail && password === publicLoginPassword;
+}
+
 function showAuth(message = "") {
   const gate = document.querySelector("#authGate");
   const shell = document.querySelector("#appShell");
@@ -2802,10 +2815,14 @@ async function initializeAuth() {
     startApplication();
   } catch (error) {
     apiMode = false;
-    currentUser = { name: "Mode local", email: "" };
+    if (!isPublicAuthenticated()) {
+      showAuth("Entre le mot de passe pour ouvrir Recouvria.");
+      return;
+    }
+    currentUser = { name: "Accès partagé", email: publicLoginEmail };
     showApp();
     startApplication();
-    toast("API indisponible : mode local activé");
+    updateSessionBadge("Accès protégé");
   }
 }
 
@@ -2817,6 +2834,16 @@ async function handleLogin(event) {
   if (error) error.textContent = "";
   if (button) button.disabled = true;
   try {
+    if (!apiMode && authenticatePublic(form)) {
+      sessionStorage.setItem(publicAuthKey, "true");
+      currentUser = { name: "Accès partagé", email: publicLoginEmail };
+      showApp();
+      startApplication();
+      updateSessionBadge("Accès protégé");
+      toast("Connexion réussie");
+      return;
+    }
+
     const payload = await apiRequest("/api/login", {
       method: "POST",
       body: JSON.stringify({
@@ -2831,7 +2858,11 @@ async function handleLogin(event) {
     startApplication();
     toast("Connexion réussie");
   } catch (errorMessage) {
-    if (error) error.textContent = errorMessage.message || "Connexion impossible";
+    if (!apiMode && !authenticatePublic(form)) {
+      if (error) error.textContent = "Email ou mot de passe incorrect.";
+    } else if (error) {
+      error.textContent = errorMessage.message || "Connexion impossible";
+    }
   } finally {
     if (button) button.disabled = false;
   }
@@ -2846,8 +2877,9 @@ async function logout() {
     }
   }
   currentUser = null;
+  sessionStorage.removeItem(publicAuthKey);
   if (apiMode) showAuth("Session fermée.");
-  else updateSessionBadge("Base locale");
+  else showAuth("Session fermée.");
 }
 
 function bindEvents() {

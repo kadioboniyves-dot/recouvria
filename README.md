@@ -46,6 +46,8 @@ Email : admin@recouvria.local
 Mot de passe : recouvria2026
 ```
 
+Le meme mot de passe verrouille aussi la version publique partageable quand le backend local n'est pas disponible.
+
 La base est creee automatiquement dans `data/recouvria.sqlite`. Ce dossier est ignore par Git.
 
 ## Structure
