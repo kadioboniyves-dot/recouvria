@@ -2757,6 +2757,10 @@ function authenticatePublic(form) {
   return email === publicLoginEmail && password === publicLoginPassword;
 }
 
+function shouldUseBackendApi() {
+  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+}
+
 function showAuth(message = "") {
   const gate = document.querySelector("#authGate");
   const shell = document.querySelector("#appShell");
@@ -2802,6 +2806,19 @@ async function hydrateFromServer() {
 }
 
 async function initializeAuth() {
+  if (!shouldUseBackendApi()) {
+    apiMode = false;
+    if (!isPublicAuthenticated()) {
+      showAuth("Entre le mot de passe pour ouvrir Recouvria.");
+      return;
+    }
+    currentUser = { name: "Accès partagé", email: publicLoginEmail };
+    showApp();
+    startApplication();
+    updateSessionBadge("Accès protégé");
+    return;
+  }
+
   try {
     const session = await apiRequest("/api/session");
     apiMode = true;
