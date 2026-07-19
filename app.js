@@ -6,6 +6,7 @@ const letterStorageKey = "recouvriaLettersV1";
 const publicAuthKey = "recouvriaPublicAuthenticated";
 const publicLoginEmail = "admin@recouvria.local";
 const publicLoginPassword = "recouvria2026";
+const cloudStateEndpoint = "https://propose-moi-une-application-de-reco.vercel.app/api/state";
 
 let apiMode = false;
 let cloudSyncMode = false;
@@ -506,12 +507,20 @@ function queuePersistState() {
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(async () => {
     try {
-      await apiRequest("/api/state", {
-        method: "PUT",
-        headers: cloudSyncMode && !apiMode ? { "x-recouvria-admin-password": publicLoginPassword } : {},
-        body: JSON.stringify(statePayload())
-      });
-      updateSessionBadge(cloudSyncMode && !apiMode ? "Base Supabase synchronisée" : "Base synchronisée");
+      if (apiMode) {
+        await apiRequest("/api/state", {
+          method: "PUT",
+          body: JSON.stringify(statePayload())
+        });
+        await persistCloudState();
+      } else {
+        await apiRequest("/api/state", {
+          method: "PUT",
+          headers: { "x-recouvria-admin-password": publicLoginPassword },
+          body: JSON.stringify(statePayload())
+        });
+      }
+      updateSessionBadge(cloudSyncMode && !apiMode ? "Base Supabase synchronisée" : "Base synchronisée PC + cloud");
     } catch (error) {
       console.error(error);
       updateSessionBadge(cloudSyncMode && !apiMode ? "Synchro Supabase en attente" : "Synchro en attente");
@@ -3036,6 +3045,30 @@ async function hydrateFromServer() {
   applyBootstrap(payload);
 }
 
+async function persistCloudState() {
+  try {
+    const response = await fetch(cloudStateEndpoint, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "x-recouvria-admin-password": publicLoginPassword
+      },
+      body: JSON.stringify(statePayload())
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.configured === false) {
+      cloudSyncMode = false;
+      return false;
+    }
+    cloudSyncMode = true;
+    return true;
+  } catch (error) {
+    console.error(error);
+    cloudSyncMode = false;
+    return false;
+  }
+}
+
 async function hydrateFromCloudState() {
   try {
     const payload = await apiRequest("/api/state", {
@@ -3090,6 +3123,9 @@ async function initializeAuth() {
     currentUser = session.user;
     await hydrateFromServer();
     showApp();
+    persistCloudState().then((synced) => {
+      updateSessionBadge(synced ? "Base locale envoyée vers Supabase" : "Base locale PC");
+    });
     startApplication();
   } catch (error) {
     apiMode = false;
