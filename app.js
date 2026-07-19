@@ -675,6 +675,26 @@ function openCommunicationLink(item, channel, note = "") {
   return false;
 }
 
+async function sendEmailViaResend({ to, subject, text, html }) {
+  const response = await fetch("/api/send-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-recouvria-admin-password": publicLoginPassword
+    },
+    body: JSON.stringify({ to, subject, text, html })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.error || payload.configured === false) {
+    throw new Error(payload.error || "Email non envoyé");
+  }
+  return payload;
+}
+
+function openMailto(to, subject, text) {
+  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+}
+
 function todayLabel() {
   return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
 }
@@ -1221,11 +1241,15 @@ async function copyClientPortalLink(caseId) {
   }
 }
 
-function emailClientPortalLink(caseId) {
+async function emailClientPortalLink(caseId) {
   const item = getCase(caseId);
   if (!item) return;
-  const subject = encodeURIComponent(`Votre espace recouvrement KFN Pharma - ${item.id}`);
-  const body = encodeURIComponent([
+  if (!item.email) {
+    toast("Email client indisponible");
+    return;
+  }
+  const subject = `Votre espace recouvrement KFN Pharma - ${item.id}`;
+  const body = [
     `Bonjour ${item.contact},`,
     "",
     `Vous pouvez consulter votre dossier de recouvrement ${item.id} via ce lien sécurisé :`,
@@ -1233,8 +1257,18 @@ function emailClientPortalLink(caseId) {
     "",
     "Cordialement,",
     "Administration de recouvrement KFN Pharma"
-  ].join("\n"));
-  window.location.href = `mailto:${encodeURIComponent(item.email)}?subject=${subject}&body=${body}`;
+  ].join("\n");
+  try {
+    await sendEmailViaResend({ to: item.email, subject, text: body });
+    addHistory(item, `Lien client envoyé par email le ${todayLabel()}`);
+    saveCases();
+    refreshViews();
+    toast(`Lien client envoyé à ${item.client}`);
+  } catch (error) {
+    console.warn(error);
+    openMailto(item.email, subject, body);
+    toast("Resend indisponible : email préparé dans la messagerie");
+  }
 }
 
 function orderGroupKey(order) {
@@ -1839,7 +1873,7 @@ function openPromiseForm(id = "") {
   bindFormButton("promiseForm");
 }
 
-function registerReminder(id, channel, note = "", nextAction = "Suivi de relance", nextDate = "Dans 48h") {
+async function registerReminder(id, channel, note = "", nextAction = "Suivi de relance", nextDate = "Dans 48h") {
   const item = getCase(id);
   if (!item) return;
   if (item.archived) {
@@ -1862,12 +1896,28 @@ function registerReminder(id, channel, note = "", nextAction = "Suivi de relance
   saveCases();
   refreshViews();
   openDrawer(id);
+  if (channel === "email" && item.email) {
+    try {
+      await sendEmailViaResend({
+        to: item.email,
+        subject: reminderSubject(item),
+        text: reminderMessage(item, note)
+      });
+      toast(`Email envoyé à ${item.client}`);
+      return;
+    } catch (error) {
+      console.warn(error);
+      openMailto(item.email, reminderSubject(item), reminderMessage(item, note));
+      toast("Resend indisponible : email préparé dans la messagerie");
+      return;
+    }
+  }
   const opened = openCommunicationLink(item, channel, note);
   toast(opened ? `${label} préparé pour ${item.client}` : `${label} enregistré pour ${item.client}`);
 }
 
-function saveReminderFromForm(form) {
-  registerReminder(
+async function saveReminderFromForm(form) {
+  await registerReminder(
     form.dataset.caseId,
     fieldValue(form, "channel"),
     fieldValue(form, "note").trim(),
@@ -2587,12 +2637,12 @@ function resetLocalData() {
   toast("Données réinitialisées");
 }
 
-function handleFormSave(form) {
+async function handleFormSave(form) {
   try {
     if (!form) return;
     if (typeof form.reportValidity === "function" && !form.reportValidity()) return;
     if (form.id === "caseForm") saveCaseFromForm(form);
-    if (form.id === "reminderForm") saveReminderFromForm(form);
+    if (form.id === "reminderForm") await saveReminderFromForm(form);
     if (form.id === "paymentForm") savePaymentFromForm(form);
     if (form.id === "promiseForm") savePromiseFromForm(form);
     if (form.id === "orderForm") saveOrderFromForm(form);
@@ -3263,7 +3313,7 @@ function bindEvents() {
     renderTable();
   });
 
-  document.body.addEventListener("click", (event) => {
+  document.body.addEventListener("click", async (event) => {
     const openButton = closestAction(event.target, "[data-open]");
     const editButton = closestAction(event.target, "[data-edit]");
     const closeFormButton = closestAction(event.target, "[data-close-form]");
@@ -3323,7 +3373,7 @@ function bindEvents() {
     if (openButton) openDrawer(openButton.dataset.open);
     if (editButton) openCaseForm(editButton.dataset.edit);
     if (closeFormButton) closeDrawer();
-    if (reminderButton) registerReminder(reminderButton.dataset.reminder, reminderButton.dataset.channel || "call");
+    if (reminderButton) await registerReminder(reminderButton.dataset.reminder, reminderButton.dataset.channel || "call");
     if (reminderFormButton) openReminderForm(reminderFormButton.dataset.reminderForm, reminderFormButton.dataset.channel || "call");
     if (paymentFormButton) openPaymentForm(paymentFormButton.dataset.paymentForm);
     if (paymentFullButton) registerFullPayment(paymentFullButton.dataset.paymentFull);
@@ -3350,7 +3400,7 @@ function bindEvents() {
     if (agentEditButton) openAgentForm(agentEditButton.dataset.agentEdit);
     if (agentToggleButton) toggleAgent(agentToggleButton.dataset.agentToggle);
     if (clientLinkButton) copyClientPortalLink(clientLinkButton.dataset.clientLink);
-    if (clientLinkEmailButton) emailClientPortalLink(clientLinkEmailButton.dataset.clientLinkEmail);
+    if (clientLinkEmailButton) await emailClientPortalLink(clientLinkEmailButton.dataset.clientLinkEmail);
     if (clientRequestOpenButton) openClientRequest(clientRequestOpenButton.dataset.clientRequestOpen);
     if (clientRequestDoneButton) markClientRequestDone(clientRequestDoneButton.dataset.clientRequestDone);
     if (clientRequestStatusButton) {
@@ -3363,7 +3413,7 @@ function bindEvents() {
     if (clientRequestEmailButton) {
       const email = clientRequestEmailButton.dataset.clientRequestEmail;
       if (email) {
-        window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Réponse KFN Pharma - Recouvrement")}`;
+        openMailto(email, "Réponse KFN Pharma - Recouvrement", "");
       } else {
         toast("Email client indisponible");
       }

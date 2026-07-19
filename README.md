@@ -72,6 +72,20 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 Une fois configuré, les boutons du lien client créent des demandes dans Supabase et l'administration les affiche dans le tableau de bord.
 
+## Resend
+
+Pour envoyer les emails depuis l'application :
+
+1. Créer une clé API Resend.
+2. Ajouter ces variables dans Vercel :
+
+```text
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=Recouvria KFN Pharma <onboarding@resend.dev>
+```
+
+`RESEND_FROM_EMAIL` peut rester sur `onboarding@resend.dev` pendant les tests. Quand le domaine sera acheté et validé dans Resend, utiliser une adresse professionnelle comme `recouvrement@recouvrement-kfn.com`.
+
 ## Structure
 
 - `index.html` : structure de l'interface
