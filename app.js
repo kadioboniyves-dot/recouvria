@@ -3069,6 +3069,26 @@ async function persistCloudState() {
   }
 }
 
+async function syncCloudNow() {
+  updateSessionBadge("Synchronisation cloud...");
+  try {
+    if (apiMode) {
+      await apiRequest("/api/state", {
+        method: "PUT",
+        body: JSON.stringify(statePayload())
+      });
+    }
+    const synced = await persistCloudState();
+    if (!synced) throw new Error("Supabase n'est pas prêt");
+    updateSessionBadge("Base envoyée vers Supabase");
+    toast("Base synchronisée pour PC et téléphone");
+  } catch (error) {
+    console.error(error);
+    updateSessionBadge("Synchronisation cloud impossible");
+    toast("Synchronisation impossible : vérifie Supabase");
+  }
+}
+
 async function hydrateFromCloudState() {
   try {
     const payload = await apiRequest("/api/state", {
@@ -3201,6 +3221,7 @@ async function logout() {
 function bindEvents() {
   document.querySelector("#loginForm")?.addEventListener("submit", handleLogin);
   document.querySelector("#logoutButton")?.addEventListener("click", logout);
+  document.querySelector("#cloudSyncButton")?.addEventListener("click", syncCloudNow);
   document.querySelector("#newClientButton")?.addEventListener("click", () => openClientForm());
   document.querySelector("#newAgentButton")?.addEventListener("click", () => openAgentForm());
   document.querySelector("#refreshClientRequests")?.addEventListener("click", loadClientRequests);

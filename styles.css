@@ -120,8 +120,8 @@ button {
 }
 
 .auth-logo {
-  width: min(100%, 390px);
-  max-height: 150px;
+  width: min(100%, 460px);
+  max-height: 175px;
   object-fit: contain;
   justify-self: start;
 }
@@ -167,7 +167,7 @@ button {
 .brand-logo {
   display: block;
   width: 100%;
-  max-width: 260px;
+  max-width: 292px;
   height: auto;
   object-fit: contain;
 }
@@ -1455,7 +1455,7 @@ td small {
 }
 
 .client-logo {
-  max-width: 420px;
+  max-width: 500px;
 }
 
 .client-header-actions {
@@ -1642,7 +1642,7 @@ td small {
   }
 
   .brand-logo {
-    max-width: 190px;
+    max-width: 280px;
   }
 
   .nav-list {
