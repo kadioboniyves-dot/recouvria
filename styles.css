@@ -134,7 +134,7 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: 340px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -167,7 +167,8 @@ button {
 .brand-logo {
   display: block;
   width: 100%;
-  max-width: 292px;
+  max-width: 320px;
+  min-height: 112px;
   height: auto;
   object-fit: contain;
 }
@@ -1642,7 +1643,8 @@ td small {
   }
 
   .brand-logo {
-    max-width: 280px;
+    max-width: 360px;
+    min-height: 118px;
   }
 
   .nav-list {
@@ -1719,6 +1721,11 @@ td small {
   .sidebar {
     padding: 12px;
     gap: 12px;
+  }
+
+  .brand-logo {
+    max-width: min(100%, 360px);
+    min-height: 105px;
   }
 
   .brand-mark {
