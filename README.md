@@ -72,6 +72,19 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 Une fois configuré, les boutons du lien client créent des demandes dans Supabase et l'administration les affiche dans le tableau de bord.
 
+Pour préparer la version professionnelle multi-admin, le fichier `supabase/professional_schema.sql` ajoute les tables métier structurées :
+
+- organisations
+- comptes et rôles utilisateurs
+- clients
+- dossiers
+- factures
+- paiements
+- lettres
+- audit des actions
+
+Les liens clients générés depuis l'administration utilisent maintenant un token sécurisé quand il est disponible, tout en conservant la compatibilité avec les anciens liens par numéro de dossier.
+
 ## Resend
 
 Pour envoyer les emails depuis l'application :

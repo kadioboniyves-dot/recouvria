@@ -34,6 +34,8 @@ function resolveClientProfile() {
   if (clientProfileOverride) return clientProfileOverride;
   const params = new URLSearchParams(window.location.search);
   const caseId = params.get("dossier") || params.get("case") || "";
+  const token = params.get("token") || "";
+  if (token) return clientCases[0];
   return clientCases.find((item) => item.id.toLowerCase() === caseId.toLowerCase()) || clientCases[0];
 }
 
@@ -91,9 +93,11 @@ function applyPublicCase(payload) {
 async function hydratePublicCase() {
   const params = new URLSearchParams(window.location.search);
   const dossier = params.get("dossier") || params.get("case") || "";
-  if (!dossier) return;
+  const token = params.get("token") || "";
+  if (!dossier && !token) return;
   try {
-    const response = await fetch(`/api/public-case?dossier=${encodeURIComponent(dossier)}`);
+    const query = token ? `token=${encodeURIComponent(token)}` : `dossier=${encodeURIComponent(dossier)}`;
+    const response = await fetch(`/api/public-case?${query}`);
     const payload = await response.json().catch(() => ({}));
     if (response.ok && applyPublicCase(payload)) renderClientPortal();
   } catch (error) {

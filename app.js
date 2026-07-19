@@ -3,6 +3,7 @@ const orderStorageKey = "recouvriaOrdersV3";
 const agentStorageKey = "recouvriaAgentsV1";
 const clientStorageKey = "recouvriaClientsV1";
 const letterStorageKey = "recouvriaLettersV1";
+const auditStorageKey = "recouvriaAuditTrailV1";
 const publicAuthKey = "recouvriaPublicAuthenticated";
 const publicLoginEmail = "admin@recouvria.local";
 const publicLoginPassword = "recouvria2026";
@@ -188,6 +189,7 @@ let orders = loadOrders();
 let agents = loadAgents();
 let clients = loadClients();
 let letters = loadLetters();
+let auditTrail = loadAuditTrail();
 let clientRequests = [];
 let clientRequestsConfigured = null;
 
@@ -256,10 +258,20 @@ function defaultEmail(item) {
   return `recouvrement@${slug || "client"}.ci`;
 }
 
+function generatePortalToken() {
+  const bytes = new Uint8Array(18);
+  if (window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 16)}`;
+}
+
 function normalizeCases(items) {
   return items.map((item) => {
     const nextItem = { ...item, archived: Boolean(item.archived), history: item.history || [] };
     nextItem.email = nextItem.email || defaultEmail(nextItem);
+    nextItem.clientToken = nextItem.clientToken || generatePortalToken();
     const due = Math.max(0, Number(nextItem.amount) - Number(nextItem.paid));
     if (due === 0 && Number(nextItem.amount) > 0) {
       nextItem.paid = nextItem.amount;
@@ -463,6 +475,31 @@ function saveLetters() {
   queuePersistState();
 }
 
+function normalizeAuditTrail(items) {
+  return (items || []).map((item) => ({
+    id: item.id || `AUD-${Date.now().toString(36)}`,
+    caseId: item.caseId || "",
+    client: item.client || "",
+    action: item.action || item.message || "",
+    user: item.user || currentUser?.email || publicLoginEmail,
+    createdAt: item.createdAt || new Date().toISOString()
+  })).filter((item) => item.action);
+}
+
+function loadAuditTrail() {
+  try {
+    const stored = localStorage.getItem(auditStorageKey);
+    return normalizeAuditTrail(stored ? JSON.parse(stored) : []);
+  } catch {
+    return [];
+  }
+}
+
+function saveAuditTrail() {
+  localStorage.setItem(auditStorageKey, JSON.stringify(auditTrail));
+  queuePersistState();
+}
+
 function syncClientsFromRecords() {
   if (isHydrating) return;
   const known = new Map(clients.map((item) => [item.name.toLowerCase(), item]));
@@ -483,7 +520,7 @@ function syncClientsFromRecords() {
 }
 
 function statePayload() {
-  return { cases, orders, agents, clients, letters };
+  return { cases, orders, agents, clients, letters, auditTrail };
 }
 
 async function apiRequest(path, options = {}) {
@@ -528,18 +565,32 @@ function queuePersistState() {
   }, 350);
 }
 
+function normalizeStatePayload(payload) {
+  if (typeof payload === "string") {
+    try {
+      return JSON.parse(payload);
+    } catch {
+      return {};
+    }
+  }
+  return payload || {};
+}
+
 function applyBootstrap(payload) {
+  payload = normalizeStatePayload(payload);
   isHydrating = true;
   cases = normalizeCases(payload.cases || seedCases);
   orders = normalizeOrders(payload.orders || seedOrders);
   agents = normalizeAgents(payload.agents || seedAgents);
   clients = normalizeClients(payload.clients || buildClientsFromRecords(cases, orders));
   letters = normalizeLetters(payload.letters || []);
+  auditTrail = normalizeAuditTrail(payload.auditTrail || []);
   localStorage.setItem(storageKey, JSON.stringify(cases));
   localStorage.setItem(orderStorageKey, JSON.stringify(orders));
   localStorage.setItem(agentStorageKey, JSON.stringify(agents));
   localStorage.setItem(clientStorageKey, JSON.stringify(clients));
   localStorage.setItem(letterStorageKey, JSON.stringify(letters));
+  localStorage.setItem(auditStorageKey, JSON.stringify(auditTrail));
   isHydrating = false;
 }
 
@@ -614,6 +665,18 @@ function getOrder(id) {
 
 function addHistory(item, message) {
   item.history = [message, ...(item.history || [])].slice(0, 8);
+  auditTrail = [
+    {
+      id: `AUD-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      caseId: item.id || "",
+      client: item.client || "",
+      action: message,
+      user: currentUser?.email || publicLoginEmail,
+      createdAt: new Date().toISOString()
+    },
+    ...auditTrail
+  ].slice(0, 300);
+  localStorage.setItem(auditStorageKey, JSON.stringify(auditTrail));
 }
 
 function remainingAmount(item) {
@@ -1226,7 +1289,10 @@ function getOrdersForCase(item) {
 }
 
 function clientPortalUrl(caseId) {
-  return `${window.location.origin}/client?dossier=${encodeURIComponent(caseId)}`;
+  const item = getCase(caseId);
+  const token = item?.clientToken || caseId;
+  const param = item?.clientToken ? "token" : "dossier";
+  return `${window.location.origin}/client?${param}=${encodeURIComponent(token)}`;
 }
 
 async function copyClientPortalLink(caseId) {

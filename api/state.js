@@ -37,6 +37,22 @@ function isAuthorized(request) {
   return request.headers["x-recouvria-admin-password"] === adminPassword;
 }
 
+function normalizeBody(body) {
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body || "{}");
+    } catch {
+      return {};
+    }
+  }
+  return body || {};
+}
+
+function normalizeState(payload) {
+  if (!payload) return null;
+  return normalizeBody(payload);
+}
+
 export default async function handler(request, response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,PUT,POST,OPTIONS");
@@ -55,7 +71,7 @@ export default async function handler(request, response) {
   try {
     if (request.method === "GET") {
       const rows = await supabaseRequest(`${tableName}?key=eq.${encodeURIComponent(stateKey)}&select=payload,updated_at&limit=1`);
-      send(response, 200, { configured: true, state: rows?.[0]?.payload || null, updatedAt: rows?.[0]?.updated_at || null });
+      send(response, 200, { configured: true, state: normalizeState(rows?.[0]?.payload), updatedAt: rows?.[0]?.updated_at || null });
       return;
     }
 
@@ -64,7 +80,7 @@ export default async function handler(request, response) {
         send(response, 401, { configured: true, error: "Mot de passe admin requis." });
         return;
       }
-      const row = { key: stateKey, payload: request.body || {}, updated_at: new Date().toISOString() };
+      const row = { key: stateKey, payload: normalizeBody(request.body), updated_at: new Date().toISOString() };
       const rows = await supabaseRequest(tableName, {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=representation" },

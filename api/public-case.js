@@ -7,6 +7,17 @@ function send(response, status, payload) {
   response.status(status).json(payload);
 }
 
+function normalizeState(payload) {
+  if (typeof payload === "string") {
+    try {
+      return JSON.parse(payload);
+    } catch {
+      return {};
+    }
+  }
+  return payload || {};
+}
+
 async function supabaseRequest(path) {
   const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
     headers: {
@@ -30,15 +41,19 @@ export default async function handler(request, response) {
   }
 
   const dossier = String(request.query?.dossier || request.query?.case || "").trim();
-  if (!dossier) {
-    send(response, 400, { error: "Dossier requis" });
+  const token = String(request.query?.token || "").trim();
+  if (!dossier && !token) {
+    send(response, 400, { error: "Dossier ou token requis" });
     return;
   }
 
   try {
     const rows = await supabaseRequest(`${tableName}?key=eq.${encodeURIComponent(stateKey)}&select=payload&limit=1`);
-    const state = rows?.[0]?.payload || {};
-    const target = (state.cases || []).find((item) => String(item.id).toLowerCase() === dossier.toLowerCase());
+    const state = normalizeState(rows?.[0]?.payload);
+    const target = (state.cases || []).find((item) => {
+      if (token) return String(item.clientToken || "") === token;
+      return String(item.id).toLowerCase() === dossier.toLowerCase();
+    });
     if (!target) {
       send(response, 404, { configured: true, error: "Dossier introuvable", case: null, orders: [] });
       return;
