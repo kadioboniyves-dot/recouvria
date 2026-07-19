@@ -33,7 +33,7 @@
       <header class="client-header">
         <img class="brand-logo client-logo" src="assets/kfn-pharma-recouvrement.png" alt="KFN Pharma - Administration de recouvrement" />
         <div class="client-header-actions">
-          <span class="session-chip"><strong>Clinique Saint Gabriel</strong><span>Espace client sécurisé</span></span>
+          <span class="session-chip"><strong id="clientSessionName">Client</strong><span>Espace client sécurisé</span></span>
           <button class="secondary-button" id="clientLogoutButton" type="button">Quitter</button>
         </div>
       </header>
@@ -41,13 +41,13 @@
       <section class="client-hero-panel">
         <div>
           <p class="eyebrow">Dossier client</p>
-          <h1>Clinique Saint Gabriel</h1>
-          <p>Awa Kouame - awa.kouame@saintgabriel.ci - +225 07 48 22 91 34</p>
+          <h1 id="clientHeroName">Client</h1>
+          <p id="clientHeroMeta"></p>
         </div>
         <div class="client-balance">
           <span>Reste à régulariser</span>
-          <strong>6 600 000 FCFA</strong>
-          <small>Prochaine action : validation du plan de paiement</small>
+          <strong id="clientBalanceAmount">0 FCFA</strong>
+          <small id="clientNextAction">Prochaine action</small>
         </div>
       </section>
 
@@ -59,11 +59,7 @@
               <h2>Situation actuelle</h2>
             </div>
           </div>
-          <div class="client-invoice-list">
-            <div><strong>BC-2026-0518</strong><span>Consommables médicaux</span><b>3 900 000 FCFA</b></div>
-            <div><strong>BC-2026-0518</strong><span>Kits de stérilisation</span><b>900 000 FCFA</b></div>
-            <div><strong>RC-2026-0148</strong><span>Solde ancien dossier</span><b>1 800 000 FCFA</b></div>
-          </div>
+          <div class="client-invoice-list" id="clientInvoiceList"></div>
         </article>
 
         <article class="surface">
@@ -99,6 +95,6 @@
     </main>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="client.js?v=5"></script>
+    <script src="client.js?v=6"></script>
   </body>
 </html>

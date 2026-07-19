@@ -1194,6 +1194,38 @@ function getOrdersForCase(item) {
   return orders.filter((order) => order.caseId === item.id || (!order.caseId && order.client.toLowerCase() === item.client.toLowerCase()));
 }
 
+function clientPortalUrl(caseId) {
+  return `${window.location.origin}/client?dossier=${encodeURIComponent(caseId)}`;
+}
+
+async function copyClientPortalLink(caseId) {
+  const item = getCase(caseId);
+  if (!item) return;
+  const url = clientPortalUrl(caseId);
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(`Lien client copié pour ${item.client}`);
+  } catch (error) {
+    window.prompt("Copie ce lien client", url);
+  }
+}
+
+function emailClientPortalLink(caseId) {
+  const item = getCase(caseId);
+  if (!item) return;
+  const subject = encodeURIComponent(`Votre espace recouvrement KFN Pharma - ${item.id}`);
+  const body = encodeURIComponent([
+    `Bonjour ${item.contact},`,
+    "",
+    `Vous pouvez consulter votre dossier de recouvrement ${item.id} via ce lien sécurisé :`,
+    clientPortalUrl(caseId),
+    "",
+    "Cordialement,",
+    "Administration de recouvrement KFN Pharma"
+  ].join("\n"));
+  window.location.href = `mailto:${encodeURIComponent(item.email)}?subject=${subject}&body=${body}`;
+}
+
 function orderGroupKey(order) {
   return String(order.client || "").trim().toLowerCase();
 }
@@ -1541,6 +1573,8 @@ function openDrawer(id) {
   const actionPanel = item.archived
     ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="primary-button" type="button" data-client-link="${item.id}">Copier lien client</button>
+      <button class="secondary-button" type="button" data-client-link-email="${item.id}">Envoyer lien client</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
       <button class="secondary-button" type="button" data-generate-letter="${item.id}">Générer lettre</button>
       ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
@@ -1551,6 +1585,8 @@ function openDrawer(id) {
     : settled
       ? `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="primary-button" type="button" data-client-link="${item.id}">Copier lien client</button>
+      <button class="secondary-button" type="button" data-client-link-email="${item.id}">Envoyer lien client</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
       <button class="secondary-button" type="button" data-generate-letter="${item.id}">Générer lettre</button>
       ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
@@ -1562,6 +1598,8 @@ function openDrawer(id) {
     `
       : `
       <button class="primary-button" type="button" data-edit="${item.id}">Modifier le dossier</button>
+      <button class="primary-button" type="button" data-client-link="${item.id}">Copier lien client</button>
+      <button class="secondary-button" type="button" data-client-link-email="${item.id}">Envoyer lien client</button>
       <button class="secondary-button" type="button" data-print-case="${item.id}">Imprimer PDF</button>
       <button class="secondary-button" type="button" data-generate-letter="${item.id}">Générer lettre</button>
       ${linkedOrders.length ? `<button class="secondary-button" type="button" data-export-case-orders="${item.id}">Exporter commandes</button>` : ""}
@@ -3150,6 +3188,8 @@ function bindEvents() {
     const clientRequestDoneButton = closestAction(event.target, "[data-client-request-done]");
     const clientRequestStatusButton = closestAction(event.target, "[data-client-request-status]");
     const clientRequestEmailButton = closestAction(event.target, "[data-client-request-email]");
+    const clientLinkButton = closestAction(event.target, "[data-client-link]");
+    const clientLinkEmailButton = closestAction(event.target, "[data-client-link-email]");
 
     if (saveFormButton) {
       event.preventDefault();
@@ -3197,6 +3237,8 @@ function bindEvents() {
     if (clientLetterButton) generateLetterForClient(clientLetterButton.dataset.clientLetter);
     if (agentEditButton) openAgentForm(agentEditButton.dataset.agentEdit);
     if (agentToggleButton) toggleAgent(agentToggleButton.dataset.agentToggle);
+    if (clientLinkButton) copyClientPortalLink(clientLinkButton.dataset.clientLink);
+    if (clientLinkEmailButton) emailClientPortalLink(clientLinkEmailButton.dataset.clientLinkEmail);
     if (clientRequestOpenButton) openClientRequest(clientRequestOpenButton.dataset.clientRequestOpen);
     if (clientRequestDoneButton) markClientRequestDone(clientRequestDoneButton.dataset.clientRequestDone);
     if (clientRequestStatusButton) {
