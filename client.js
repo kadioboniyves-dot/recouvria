@@ -8,7 +8,7 @@ const clientCases = [
   { id: "RC-2026-0097", name: "AgroPlus CI", contact: "Moussa Fofana", phone: "+225 07 73 18 04 66", email: "moussa.fofana@agroplus.ci", amount: 9750000, paid: 4200000, nextAction: "escalade superviseur" },
   { id: "RC-2026-0088", name: "Transit Union", contact: "Eva N'Dri", phone: "+225 05 99 42 31 77", email: "eva.ndri@transitunion.ci", amount: 2900000, paid: 1600000, nextAction: "premier appel" }
 ];
-const clientOrders = [
+let clientOrders = [
   { orderRef: "BC-2026-0518", client: "Clinique Saint Gabriel", product: "Consommables médicaux", amount: 3900000, status: "Non payée" },
   { orderRef: "BC-2026-0518", client: "Clinique Saint Gabriel", product: "Kits de stérilisation", amount: 900000, status: "Non payée" },
   { orderRef: "RC-2026-0148", client: "Clinique Saint Gabriel", product: "Solde ancien dossier", amount: 1800000, status: "Non payée" },
@@ -18,6 +18,7 @@ const clientOrders = [
   { orderRef: "RC-2026-0097", client: "AgroPlus CI", product: "Solde dossier recouvrement", amount: 5550000, status: "Non payée" },
   { orderRef: "RC-2026-0088", client: "Transit Union", product: "Solde dossier recouvrement", amount: 1300000, status: "Non payée" }
 ];
+let clientProfileOverride = null;
 let clientProfile = resolveClientProfile();
 
 function escapeHtml(value) {
@@ -30,6 +31,7 @@ function escapeHtml(value) {
 }
 
 function resolveClientProfile() {
+  if (clientProfileOverride) return clientProfileOverride;
   const params = new URLSearchParams(window.location.search);
   const caseId = params.get("dossier") || params.get("case") || "";
   return clientCases.find((item) => item.id.toLowerCase() === caseId.toLowerCase()) || clientCases[0];
@@ -60,6 +62,43 @@ function renderClientPortal() {
       <b>${formatMoney(order.amount)}</b>
     </div>
   `).join("") || `<div><strong>${escapeHtml(clientProfile.id)}</strong><span>Solde dossier recouvrement</span><b>${formatMoney(clientDue())}</b></div>`;
+}
+
+function applyPublicCase(payload) {
+  if (!payload?.case) return false;
+  const item = payload.case;
+  clientProfileOverride = {
+    id: item.id,
+    name: item.client,
+    contact: item.contact || "Service administratif",
+    phone: item.phone || "",
+    email: item.email || "",
+    amount: Number(item.amount) || 0,
+    paid: Number(item.paid) || 0,
+    nextAction: item.nextAction || "suivi du dossier"
+  };
+  clientProfile = clientProfileOverride;
+  clientOrders = (payload.orders || []).map((order) => ({
+    orderRef: order.orderRef || order.id || clientProfile.id,
+    client: order.client || clientProfile.name,
+    product: order.product || "Solde dossier recouvrement",
+    amount: Number(order.total || order.amount || 0),
+    status: order.status || "Non payée"
+  }));
+  return true;
+}
+
+async function hydratePublicCase() {
+  const params = new URLSearchParams(window.location.search);
+  const dossier = params.get("dossier") || params.get("case") || "";
+  if (!dossier) return;
+  try {
+    const response = await fetch(`/api/public-case?dossier=${encodeURIComponent(dossier)}`);
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok && applyPublicCase(payload)) renderClientPortal();
+  } catch (error) {
+    console.warn("Dossier public non synchronisé", error);
+  }
 }
 
 function fieldValue(form, name) {
@@ -299,6 +338,7 @@ function initClient() {
   bindClientEvents();
   if (isAuthenticated()) showClientPortal();
   else showClientAuth();
+  hydratePublicCase();
 }
 
 initClient();

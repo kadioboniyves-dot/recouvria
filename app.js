@@ -8,6 +8,7 @@ const publicLoginEmail = "admin@recouvria.local";
 const publicLoginPassword = "recouvria2026";
 
 let apiMode = false;
+let cloudSyncMode = false;
 let currentUser = null;
 let persistTimer = 0;
 let isHydrating = false;
@@ -501,18 +502,19 @@ async function apiRequest(path, options = {}) {
 }
 
 function queuePersistState() {
-  if (!apiMode || isHydrating) return;
+  if ((!apiMode && !cloudSyncMode) || isHydrating) return;
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(async () => {
     try {
       await apiRequest("/api/state", {
         method: "PUT",
+        headers: cloudSyncMode && !apiMode ? { "x-recouvria-admin-password": publicLoginPassword } : {},
         body: JSON.stringify(statePayload())
       });
-      updateSessionBadge("Base synchronisée");
+      updateSessionBadge(cloudSyncMode && !apiMode ? "Base Supabase synchronisée" : "Base synchronisée");
     } catch (error) {
       console.error(error);
-      updateSessionBadge("Synchro en attente");
+      updateSessionBadge(cloudSyncMode && !apiMode ? "Synchro Supabase en attente" : "Synchro en attente");
     }
   }, 350);
 }
@@ -2066,6 +2068,17 @@ function printCasePdf(id) {
   if (!item) return;
   const due = remainingAmount(item);
   const history = (item.history || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("");
+  const linkedOrders = getOrdersForCase(item);
+  const logoUrl = new URL("assets/kfn-pharma-recouvrement.png", window.location.href).href;
+  const orderRows = linkedOrders.map((order) => `
+    <tr>
+      <td>${escapeHtml(order.orderRef || order.id)}</td>
+      <td>${escapeHtml(order.product)}</td>
+      <td>${escapeHtml(`${order.quantity} ${order.packaging}`)}</td>
+      <td>${formatMoney(order.total)}</td>
+      <td>${escapeHtml(order.status)}</td>
+    </tr>
+  `).join("");
   const printWindow = window.open("", "_blank", "width=900,height=720");
   if (!printWindow) {
     toast("Autorise les fenêtres contextuelles pour imprimer");
@@ -2081,6 +2094,7 @@ function printCasePdf(id) {
         <style>
           body { margin: 32px; font-family: "Segoe UI", Arial, sans-serif; color: #1f2428; }
           header { border-bottom: 3px solid #007a72; padding-bottom: 18px; margin-bottom: 22px; }
+          .logo { display: block; width: 260px; max-width: 70%; height: auto; margin-bottom: 18px; }
           h1 { margin: 0; font-size: 28px; }
           h2 { margin: 22px 0 10px; font-size: 18px; color: #007a72; }
           .muted { color: #657079; }
@@ -2088,13 +2102,17 @@ function printCasePdf(id) {
           .box { border: 1px solid #dfe4e7; border-radius: 8px; padding: 12px; }
           .box span { display: block; color: #657079; font-size: 12px; margin-bottom: 5px; }
           .box strong { font-size: 18px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border: 1px solid #dfe4e7; padding: 9px; text-align: left; font-size: 13px; }
+          th { background: #f2f7f6; color: #005f2f; }
           ul { padding-left: 18px; }
           @media print { body { margin: 18mm; } button { display: none; } }
         </style>
       </head>
       <body>
         <header>
-          <p class="muted">Fiche dossier Recouvria</p>
+          <img class="logo" src="${logoUrl}" alt="KFN Pharma - Service administratif de recouvrement" />
+          <p class="muted">Fiche dossier client - Service administratif de recouvrement</p>
           <h1>${escapeHtml(item.client)}</h1>
           <p>${escapeHtml(item.id)} - ${escapeHtml(item.contact)} - ${escapeHtml(item.phone)} - ${escapeHtml(item.email)}</p>
         </header>
@@ -2109,6 +2127,11 @@ function printCasePdf(id) {
         <h2>Prochaine action</h2>
         <p><strong>${escapeHtml(item.nextAction)}</strong><br /><span class="muted">${escapeHtml(item.nextDate)}</span></p>
         ${item.promise ? `<h2>Engagement</h2><p>${escapeHtml(item.promise)}</p>` : ""}
+        <h2>Produits / factures liés</h2>
+        <table>
+          <thead><tr><th>Référence</th><th>Désignation</th><th>Quantité</th><th>Montant</th><th>Statut</th></tr></thead>
+          <tbody>${orderRows || `<tr><td colspan="5">Aucune commande liée.</td></tr>`}</tbody>
+        </table>
         <h2>Historique</h2>
         <ul>${history || "<li>Aucun historique</li>"}</ul>
       </body>
@@ -2951,7 +2974,7 @@ function updateSessionBadge(message = "") {
   const userName = document.querySelector("#sessionUser");
   const sync = document.querySelector("#syncStatus");
   if (userName) userName.textContent = currentUser?.name || (apiMode ? "Utilisateur" : "Mode local");
-  if (sync) sync.textContent = message || (apiMode ? "Base SQLite" : "Base locale");
+  if (sync) sync.textContent = message || (apiMode ? "Base SQLite" : cloudSyncMode ? "Base Supabase" : "Base locale non partagée");
 }
 
 function isPublicAuthenticated() {
@@ -3013,6 +3036,35 @@ async function hydrateFromServer() {
   applyBootstrap(payload);
 }
 
+async function hydrateFromCloudState() {
+  try {
+    const payload = await apiRequest("/api/state", {
+      headers: { "x-recouvria-admin-password": publicLoginPassword }
+    });
+    if (payload.configured === false) {
+      cloudSyncMode = false;
+      updateSessionBadge("Supabase non configuré");
+      return false;
+    }
+    cloudSyncMode = true;
+    if (payload.state) applyBootstrap(payload.state);
+    else {
+      await apiRequest("/api/state", {
+        method: "PUT",
+        headers: { "x-recouvria-admin-password": publicLoginPassword },
+        body: JSON.stringify(statePayload())
+      });
+    }
+    updateSessionBadge(payload.state ? "Base Supabase chargée" : "Base Supabase initialisée");
+    return true;
+  } catch (error) {
+    console.error(error);
+    cloudSyncMode = false;
+    updateSessionBadge("Base locale non partagée");
+    return false;
+  }
+}
+
 async function initializeAuth() {
   if (!shouldUseBackendApi()) {
     apiMode = false;
@@ -3022,8 +3074,9 @@ async function initializeAuth() {
     }
     currentUser = { name: "Accès partagé", email: publicLoginEmail };
     showApp();
+    await hydrateFromCloudState();
     startApplication();
-    updateSessionBadge("Accès protégé");
+    if (!cloudSyncMode) updateSessionBadge("Accès protégé local");
     return;
   }
 
@@ -3046,8 +3099,9 @@ async function initializeAuth() {
     }
     currentUser = { name: "Accès partagé", email: publicLoginEmail };
     showApp();
+    await hydrateFromCloudState();
     startApplication();
-    updateSessionBadge("Accès protégé");
+    if (!cloudSyncMode) updateSessionBadge("Accès protégé local");
   }
 }
 
@@ -3063,8 +3117,9 @@ async function handleLogin(event) {
       sessionStorage.setItem(publicAuthKey, "true");
       currentUser = { name: "Accès partagé", email: publicLoginEmail };
       showApp();
+      await hydrateFromCloudState();
       startApplication();
-      updateSessionBadge("Accès protégé");
+      if (!cloudSyncMode) updateSessionBadge("Accès protégé local");
       toast("Connexion réussie");
       return;
     }
